@@ -1,0 +1,276 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:pdfrx/pdfrx.dart';
+
+import '../../../app/theme/icons.dart';
+import '../../../app/theme/radii.dart';
+import '../../../app/theme/spacing.dart';
+import '../../../core/errors/pdf_exceptions.dart';
+import '../../../database/app_database.dart';
+import '../../../database/database_providers.dart';
+import '../../../pdf/renderer/pdf_viewer_config.dart';
+import 'providers/bookmark_providers.dart';
+import 'providers/viewer_controller.dart';
+import 'widgets/download_size_sheet.dart';
+import 'widgets/viewer_bottom_bar.dart';
+import 'widgets/viewer_search_bar.dart';
+import 'widgets/viewer_top_bar.dart';
+
+class ViewerScreen extends HookConsumerWidget {
+  const ViewerScreen({super.key, required this.documentId});
+
+  final int documentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final documentAsync = ref.watch(documentByIdProvider(documentId));
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: documentAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) => const _ViewerMessage(message: 'This document could no longer be found.'),
+        data: (document) {
+          if (document == null) {
+            return const _ViewerMessage(message: 'This document could no longer be found.');
+          }
+          return _ViewerBody(document: document);
+        },
+      ),
+    );
+  }
+}
+
+class _ViewerBody extends HookConsumerWidget {
+  const _ViewerBody({required this.document});
+
+  final Document document;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final viewerState = ref.watch(viewerControllerProvider(document.id));
+    final viewerNotifier = ref.read(viewerControllerProvider(document.id).notifier);
+    final searcher = viewerState.searcher;
+
+    final searchActive = useState(false);
+    final bookmarksAsync = ref.watch(bookmarksForDocumentProvider(document.id));
+    final bookmarks = bookmarksAsync.value ?? const <Bookmark>[];
+    final currentBookmark = bookmarks.where((b) => b.page == viewerState.currentPage).firstOrNull;
+
+    final theme = Theme.of(context);
+
+    // SizedBox.expand forces tight constraints onto the Stack regardless of
+    // what the Scaffold body passes down. Without it, a Stack with a
+    // non-Positioned child (the top bar below) can shrink-wrap to that
+    // child's small intrinsic height instead of filling the screen, which
+    // squeezes the PdfViewer into a sliver and makes the page look blank.
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: PdfViewer.file(
+              document.path,
+              controller: viewerState.controller,
+              initialPageNumber: document.lastPage > 0 ? document.lastPage : 1,
+              params: buildPdfViewerParams(
+                backgroundColor: theme.scaffoldBackgroundColor,
+                viewerOverlayBuilder: (context, size, handleLinkTap) => [
+                  PdfOverlayInteractionRegion(
+                    onTap: (_) {
+                      viewerNotifier.toggleToolbar();
+                      return true;
+                    },
+                    child: SizedBox(width: size.width, height: size.height),
+                  ),
+                ],
+                errorBannerBuilder: (context, error, stackTrace, documentRef) =>
+                    _ViewerMessage(message: _messageForError(error)),
+                onViewerReady: (document, controller) => viewerNotifier.attachSearcherIfNeeded(),
+              ),
+            ),
+          ),
+          if (searchActive.value && searcher != null)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ViewerSearchBar(
+                searcher: searcher,
+                onClose: () => searchActive.value = false,
+              ),
+            )
+          else
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 200),
+                offset: viewerState.toolbarVisible ? Offset.zero : const Offset(0, -1),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 180),
+                  opacity: viewerState.toolbarVisible ? 1 : 0,
+                  child: IgnorePointer(
+                    ignoring: !viewerState.toolbarVisible,
+                    child: ViewerTopBar(
+                      title: document.displayName,
+                      onBack: () => Navigator.of(context).pop(),
+                      onMore: () => _showMoreSheet(context, ref, document),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (!searchActive.value)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 200),
+                offset: viewerState.toolbarVisible ? Offset.zero : const Offset(0, 1),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 180),
+                  opacity: viewerState.toolbarVisible ? 1 : 0,
+                  child: IgnorePointer(
+                    ignoring: !viewerState.toolbarVisible,
+                    child: ViewerBottomBar(
+                      isBookmarked: currentBookmark != null,
+                      onSearch: searcher == null ? null : () => searchActive.value = true,
+                      onToggleBookmark: () =>
+                          _toggleBookmark(ref, document, viewerState.currentPage, currentBookmark),
+                      onInfo: () => _showInfoSheet(context, document, bookmarks, viewerState.controller),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _messageForError(Object error) {
+    return switch (error) {
+      PdfPasswordException() => const PdfPasswordRequiredException().message,
+      PdfException() => const PdfCorruptedException().message,
+      _ => const PdfOpenException().message,
+    };
+  }
+
+  Future<void> _toggleBookmark(
+    WidgetRef ref,
+    Document document,
+    int page,
+    Bookmark? existing,
+  ) async {
+    final dao = ref.read(bookmarkDaoProvider);
+    if (existing != null) {
+      await dao.deleteById(existing.id);
+    } else {
+      await dao.insertBookmark(
+        BookmarksCompanion.insert(documentId: document.id, page: page, createdAt: DateTime.now()),
+      );
+    }
+  }
+
+  void _showMoreSheet(BuildContext context, WidgetRef ref, Document document) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: Radii.bottomSheetTop),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(AppIcons.info),
+              title: const Text('Document info'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showInfoSheet(context, document, const [], null);
+              },
+            ),
+            ListTile(
+              leading: Icon(AppIcons.download),
+              title: const Text('Download'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                showDownloadSizeSheet(context, document);
+              },
+            ),
+            const SizedBox(height: Spacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showInfoSheet(
+    BuildContext context,
+    Document document,
+    List<Bookmark> bookmarks,
+    PdfViewerController? controller,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: Radii.bottomSheetTop),
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(Spacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(document.displayName, style: theme.textTheme.titleLarge),
+                const SizedBox(height: Spacing.md),
+                Text('${document.pageCount} pages', style: theme.textTheme.bodyMedium),
+                Text(
+                  '${(document.fileSize / (1024 * 1024)).toStringAsFixed(1)} MB',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                if (bookmarks.isNotEmpty) ...[
+                  const SizedBox(height: Spacing.xl),
+                  Text('Bookmarks', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: Spacing.sm),
+                  for (final bookmark in bookmarks)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(AppIcons.bookmark, size: 18, color: theme.colorScheme.primary),
+                      title: Text('Page ${bookmark.page}'),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        controller?.goToPage(pageNumber: bookmark.page);
+                      },
+                    ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ViewerMessage extends StatelessWidget {
+  const _ViewerMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.xxxl),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+      ),
+    );
+  }
+}
