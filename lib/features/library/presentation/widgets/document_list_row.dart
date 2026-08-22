@@ -8,6 +8,7 @@ import '../../../../app/theme/radii.dart';
 import '../../../../app/theme/spacing.dart';
 import '../../../../core/utils/date_formatting.dart';
 import '../../../../core/utils/document_download.dart';
+import '../../../../core/utils/file_size_formatter.dart';
 import '../../../../database/app_database.dart';
 import '../../../../database/database_providers.dart';
 import 'document_thumbnail.dart';
@@ -21,9 +22,12 @@ class DocumentListRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final metadata = document.pageCount > 0
-        ? '${document.pageCount} pages · ${formatShortDate(document.modifiedAt)}'
-        : formatShortDate(document.modifiedAt);
+    final parts = [
+      if (document.pageCount > 0) '${document.pageCount} ${document.pageCount == 1 ? 'page' : 'pages'}',
+      formatFileSize(document.fileSize),
+      formatShortDate(document.modifiedAt),
+    ];
+    final metadata = parts.join(' • ');
 
     return Semantics(
       button: true,

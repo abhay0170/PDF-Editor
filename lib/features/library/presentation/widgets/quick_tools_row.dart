@@ -5,42 +5,120 @@ import '../../../../app/router.dart';
 import '../../../../app/theme/icons.dart';
 import '../../../../app/theme/radii.dart';
 import '../../../../app/theme/spacing.dart';
+import '../../../../app/theme/tool_colors.dart';
 
 class _QuickTool {
-  const _QuickTool(this.icon, this.label, this.onTap);
+  const _QuickTool({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    this.onTap,
+  });
 
   final IconData icon;
   final String label;
-  final void Function(BuildContext context) onTap;
+  final String subtitle;
+  final Color color;
+
+  /// Null means the tool has no destination yet — the tile renders dimmed
+  /// with a "Soon" badge instead of navigating.
+  final void Function(BuildContext context)? onTap;
 }
 
-/// All nine tools — this row (with "Show more") is now the only way to
-/// reach a tool, since the separate Tools tab/screen was removed in favor
-/// of a single home page.
-final List<_QuickTool> _quickTools = [
-  _QuickTool(AppIcons.scan, 'Scan', (context) => AppRoutes.openScan(context)),
-  _QuickTool(AppIcons.merge, 'Merge', (context) => AppRoutes.openMerge(context)),
-  _QuickTool(AppIcons.split, 'Split', (context) => AppRoutes.openSplit(context)),
-  _QuickTool(AppIcons.rotate, 'Rotate', (context) => AppRoutes.openRotate(context)),
-  _QuickTool(AppIcons.extract, 'Extract', (context) => AppRoutes.openExtract(context)),
-  _QuickTool(AppIcons.watermark, 'Watermark', (context) => AppRoutes.openWatermark(context)),
-  _QuickTool(AppIcons.compress, 'Compress', (context) => AppRoutes.openCompress(context)),
-  _QuickTool(AppIcons.sign, 'Sign', (context) => AppRoutes.openSign(context)),
-  _QuickTool(AppIcons.ocr, 'Searchable', (context) => AppRoutes.openOcr(context)),
+/// The always-visible 3x3 grid — mirrors the reference design's fixed tile
+/// count. "More" reveals [_moreTools] below rather than replacing any of
+/// these nine.
+final List<_QuickTool> _primaryTools = [
+  _QuickTool(
+    icon: AppIcons.scan,
+    label: 'Scan',
+    subtitle: 'Scan new document',
+    color: ToolColors.scan,
+    onTap: (context) => AppRoutes.openScan(context),
+  ),
+  _QuickTool(
+    icon: AppIcons.merge,
+    label: 'Merge',
+    subtitle: 'Combine PDFs',
+    color: ToolColors.merge,
+    onTap: (context) => AppRoutes.openMerge(context),
+  ),
+  _QuickTool(
+    icon: AppIcons.split,
+    label: 'Split',
+    subtitle: 'Split a PDF',
+    color: ToolColors.split,
+    onTap: (context) => AppRoutes.openSplit(context),
+  ),
+  _QuickTool(
+    icon: AppIcons.compress,
+    label: 'Compress',
+    subtitle: 'Reduce file size',
+    color: ToolColors.compress,
+    onTap: (context) => AppRoutes.openCompress(context),
+  ),
+  _QuickTool(
+    icon: AppIcons.extract,
+    label: 'Extract',
+    subtitle: 'Extract pages',
+    color: ToolColors.extract,
+    onTap: (context) => AppRoutes.openExtract(context),
+  ),
+  _QuickTool(
+    icon: AppIcons.rotate,
+    label: 'Rotate',
+    subtitle: 'Rotate pages',
+    color: ToolColors.rotate,
+    onTap: (context) => AppRoutes.openRotate(context),
+  ),
+  const _QuickTool(
+    icon: AppIcons.lock,
+    label: 'Protect',
+    subtitle: 'Lock your PDF',
+    color: ToolColors.protect,
+  ),
+  const _QuickTool(
+    icon: AppIcons.image,
+    label: 'Convert',
+    subtitle: 'PDF to image',
+    color: ToolColors.convert,
+  ),
+];
+
+/// Extra tools folded under "More" — real, working destinations that just
+/// don't fit the reference's fixed 3x3 layout.
+final List<_QuickTool> _moreTools = [
+  _QuickTool(
+    icon: AppIcons.watermark,
+    label: 'Watermark',
+    subtitle: 'Add a watermark',
+    color: ToolColors.watermark,
+    onTap: (context) => AppRoutes.openWatermark(context),
+  ),
+  _QuickTool(
+    icon: AppIcons.sign,
+    label: 'Sign',
+    subtitle: 'Sign a document',
+    color: ToolColors.sign,
+    onTap: (context) => AppRoutes.openSign(context),
+  ),
+  _QuickTool(
+    icon: AppIcons.ocr,
+    label: 'Searchable',
+    subtitle: 'Make text searchable',
+    color: ToolColors.ocr,
+    onTap: (context) => AppRoutes.openOcr(context),
+  ),
 ];
 
 /// Grid columns for the tools layout.
 const int _columns = 3;
 
-/// Number of tools shown before "Show more" is needed — collapsed layout is
-/// this many tools plus a "Show more" tile, filling a full 3x2 grid.
-const int _collapsedCount = 5;
-
-/// A grid of shortcuts into every tool — shown on the Library/home screen
-/// (both the empty state and, compactly, above the document list). Starts
-/// collapsed to the most commonly used tools, with "Show more" filling the
-/// last slot of the grid; tapping it reveals the rest in place. This is now
-/// the only way to reach a tool (the separate Tools tab/screen was removed).
+/// A fixed 3x3 grid of shortcuts into every tool — shown on the Home screen
+/// (both the empty state and, compactly, above the document list). The
+/// last tile is always "More", which reveals [_moreTools] in an extra row
+/// below rather than replacing any of the nine visible tiles.
 class QuickToolsRow extends HookWidget {
   const QuickToolsRow({
     super.key,
@@ -57,17 +135,23 @@ class QuickToolsRow extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final expanded = useState(false);
-    final hasMore = _quickTools.length > _collapsedCount;
-    final visibleTools = expanded.value ? _quickTools : _quickTools.take(_collapsedCount).toList();
 
-    final cells = <Widget>[
-      for (final tool in visibleTools) _QuickToolTile(icon: tool.icon, label: tool.label, onTap: () => tool.onTap(context)),
-      if (hasMore && !expanded.value)
+    final primaryCells = [
+      for (final tool in _primaryTools)
         _QuickToolTile(
-          icon: AppIcons.more,
-          label: 'Show more',
-          onTap: () => expanded.value = true,
+          icon: tool.icon,
+          label: tool.label,
+          subtitle: tool.subtitle,
+          color: tool.color,
+          onTap: tool.onTap == null ? null : () => tool.onTap!(context),
         ),
+      _QuickToolTile(
+        icon: expanded.value ? AppIcons.chevronUp : AppIcons.more,
+        label: expanded.value ? 'Less' : 'More',
+        subtitle: 'More tools',
+        color: ToolColors.more,
+        onTap: () => expanded.value = !expanded.value,
+      ),
     ];
 
     return Padding(
@@ -75,16 +159,20 @@ class QuickToolsRow extends HookWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var i = 0; i < cells.length; i += _columns) ...[
-            if (i > 0) const SizedBox(height: Spacing.sm),
-            _QuickToolGridRow(cells: cells.skip(i).take(_columns).toList()),
-          ],
-          if (hasMore && expanded.value) ...[
+          _ToolGrid(cells: primaryCells),
+          if (expanded.value) ...[
             const SizedBox(height: Spacing.sm),
-            TextButton.icon(
-              onPressed: () => expanded.value = false,
-              icon: Icon(AppIcons.chevronUp, size: 16),
-              label: const Text('Show less'),
+            _ToolGrid(
+              cells: [
+                for (final tool in _moreTools)
+                  _QuickToolTile(
+                    icon: tool.icon,
+                    label: tool.label,
+                    subtitle: tool.subtitle,
+                    color: tool.color,
+                    onTap: tool.onTap == null ? null : () => tool.onTap!(context),
+                  ),
+              ],
             ),
           ],
         ],
@@ -93,20 +181,28 @@ class QuickToolsRow extends HookWidget {
   }
 }
 
-/// One row of the tools grid. Pads a trailing partial row with empty space
-/// so tiles keep a consistent column width instead of stretching.
-class _QuickToolGridRow extends StatelessWidget {
-  const _QuickToolGridRow({required this.cells});
+/// Lays out [cells] in rows of [_columns], padding a trailing partial row
+/// with empty space so tiles keep a consistent column width instead of
+/// stretching.
+class _ToolGrid extends StatelessWidget {
+  const _ToolGrid({required this.cells});
 
   final List<Widget> cells;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        for (var i = 0; i < _columns; i++) ...[
-          if (i > 0) const SizedBox(width: Spacing.sm),
-          Expanded(child: i < cells.length ? cells[i] : const SizedBox.shrink()),
+        for (var i = 0; i < cells.length; i += _columns) ...[
+          if (i > 0) const SizedBox(height: Spacing.sm),
+          Row(
+            children: [
+              for (var col = 0; col < _columns; col++) ...[
+                if (col > 0) const SizedBox(width: Spacing.sm),
+                Expanded(child: i + col < cells.length ? cells[i + col] : const SizedBox.shrink()),
+              ],
+            ],
+          ),
         ],
       ],
     );
@@ -114,38 +210,90 @@ class _QuickToolGridRow extends StatelessWidget {
 }
 
 class _QuickToolTile extends StatelessWidget {
-  const _QuickToolTile({required this.icon, required this.label, required this.onTap});
+  const _QuickToolTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final String subtitle;
+  final Color color;
+
+  /// Null renders the tile dimmed with a "Soon" badge instead of a working
+  /// shortcut.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: Radii.mediumRadius,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: Spacing.md),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: Radii.mediumRadius,
-          border: Border.all(color: theme.dividerColor),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 22, color: theme.colorScheme.primary),
-            const SizedBox(height: Spacing.xs),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ],
+    final enabled = onTap != null;
+
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: InkWell(
+        onTap:
+            onTap ??
+            () => ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Coming soon'))),
+        borderRadius: Radii.mediumRadius,
+        child: Container(
+          padding: const EdgeInsets.all(Spacing.md),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: Radii.mediumRadius,
+            border: Border.all(color: theme.dividerColor),
+          ),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: Radii.smallRadius,
+                    ),
+                    child: Icon(icon, size: 20, color: color),
+                  ),
+                  const SizedBox(height: Spacing.sm),
+                  Text(
+                    label,
+                    style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+              if (!enabled)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: theme.dividerColor,
+                      borderRadius: Radii.smallRadius,
+                    ),
+                    child: Text('Soon', style: theme.textTheme.labelSmall),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

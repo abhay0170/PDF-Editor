@@ -50,4 +50,7 @@ class AppIcons {
   static const IconData crop = LucideIcons.crop;
   static const IconData chevronDown = LucideIcons.chevronDown;
   static const IconData chevronUp = LucideIcons.chevronUp;
+  static const IconData home = LucideIcons.home;
+  static const IconData profile = LucideIcons.circleUserRound;
+  static const IconData crown = LucideIcons.crown;
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
-import '../features/settings/presentation/settings_screen.dart';
 import '../features/tools/compress/presentation/compress_screen.dart';
 import '../features/tools/extract/presentation/extract_screen.dart';
 import '../features/tools/merge/presentation/merge_screen.dart';
@@ -24,12 +23,6 @@ class AppRoutes {
     return Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => ViewerScreen(documentId: documentId)));
-  }
-
-  static Future<void> openSettings(BuildContext context) {
-    return Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
   }
 
   static Future<void> openMerge(BuildContext context, {Document? initialDocument}) {

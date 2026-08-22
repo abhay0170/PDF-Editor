@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../features/library/presentation/library_screen.dart';
 import '../features/settings/presentation/theme_mode_provider.dart';
+import 'app_shell.dart';
 import 'theme/app_theme.dart';
 
 class App extends ConsumerWidget {
@@ -18,7 +18,7 @@ class App extends ConsumerWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
-      home: const LibraryScreen(),
+      home: const AppShell(),
     );
   }
 }
