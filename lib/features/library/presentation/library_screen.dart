@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -7,10 +8,13 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../app/router.dart';
 import '../../../app/theme/icons.dart';
 import '../../../app/theme/spacing.dart';
+import '../../../database/app_database.dart';
 import '../../../database/daos/document_dao.dart';
+import '../../../database/database_providers.dart';
 import 'providers/import_controller.dart';
 import 'providers/library_providers.dart';
 import 'widgets/document_list_row.dart';
+import 'widgets/folder_chips_row.dart';
 import 'widgets/library_empty_state.dart';
 
 /// The Documents tab — search, sort, and the full document list. The
@@ -25,26 +29,97 @@ class LibraryScreen extends HookConsumerWidget {
     final searchDebounce = useRef<Timer?>(null);
     useEffect(() => () => searchDebounce.value?.cancel(), const []);
     final documentsAsync = ref.watch(libraryDocumentsProvider);
+    final selectedFolder = ref.watch(selectedFolderProvider);
+    final selectedIds = useState<Set<int>>(const {});
+    final selectionMode = selectedIds.value.isNotEmpty;
+
+    final documents = documentsAsync.value ?? const <Document>[];
+    final query = searchQuery.value.toLowerCase();
+    final filtered = documents.where((d) {
+      if (selectedFolder != null && d.folderId != selectedFolder) return false;
+      if (query.isEmpty) return true;
+      return d.displayName.toLowerCase().contains(query) ||
+          (d.content?.toLowerCase().contains(query) ?? false);
+    }).toList();
+
+    void clearSelection() => selectedIds.value = const {};
+
+    void toggleSelected(int id) {
+      final next = {...selectedIds.value};
+      if (!next.remove(id)) next.add(id);
+      selectedIds.value = next;
+    }
+
+    Future<void> deleteSelected() async {
+      final ids = selectedIds.value;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Delete ${ids.length} ${ids.length == 1 ? 'document' : 'documents'}?'),
+          content: const Text('They will be permanently removed.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+
+      final toDelete = documents.where((d) => ids.contains(d.id)).toList();
+      await ref.read(documentDaoProvider).deleteByIds(ids.toList());
+      for (final doc in toDelete) {
+        final file = File(doc.path);
+        if (file.existsSync()) await file.delete();
+        final thumbPath = doc.thumbnailPath;
+        if (thumbPath != null && File(thumbPath).existsSync()) {
+          await File(thumbPath).delete();
+        }
+      }
+      clearSelection();
+    }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Documents')),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => ref.read(importControllerProvider.notifier).pickAndImportPdf(),
-        tooltip: 'Add PDF',
-        child: Icon(AppIcons.add),
-      ),
+      appBar: selectionMode
+          ? AppBar(
+              leading: IconButton(
+                icon: Icon(AppIcons.close),
+                tooltip: 'Cancel selection',
+                onPressed: clearSelection,
+              ),
+              title: Text('${selectedIds.value.length} selected'),
+              actions: [
+                IconButton(
+                  icon: Icon(AppIcons.check),
+                  tooltip: 'Select all',
+                  onPressed: () => selectedIds.value = filtered.map((d) => d.id).toSet(),
+                ),
+                IconButton(
+                  icon: Icon(AppIcons.trash),
+                  tooltip: 'Delete selected',
+                  onPressed: deleteSelected,
+                ),
+              ],
+            )
+          : AppBar(title: const Text('Documents')),
+      floatingActionButton: selectionMode
+          ? null
+          : FloatingActionButton(
+              onPressed: () => ref.read(importControllerProvider.notifier).pickAndImportPdf(),
+              tooltip: 'Add PDF',
+              child: Icon(AppIcons.add),
+            ),
       body: documentsAsync.when(
         loading: () => const _LibrarySkeleton(),
         error: (error, _) => Center(
           child: Text('Something went wrong loading your library.', style: Theme.of(context).textTheme.bodyMedium),
         ),
-        data: (documents) {
-          final filtered = searchQuery.value.isEmpty
-              ? documents
-              : documents
-                    .where((d) => d.displayName.toLowerCase().contains(searchQuery.value.toLowerCase()))
-                    .toList();
-
+        data: (_) {
           if (documents.isEmpty) {
             return LibraryEmptyState(
               onAddPdf: () => ref.read(importControllerProvider.notifier).pickAndImportPdf(),
@@ -71,7 +146,9 @@ class LibraryScreen extends HookConsumerWidget {
                           _SortMenuButton(ref: ref),
                         ],
                       ),
-                      const SizedBox(height: Spacing.xs),
+                      const SizedBox(height: Spacing.sm),
+                      const FolderChipsRow(),
+                      const SizedBox(height: Spacing.sm),
                       Text(
                         '${documents.length} ${documents.length == 1 ? 'document' : 'documents'}',
                         style: Theme.of(context).textTheme.bodyMedium,
@@ -86,7 +163,7 @@ class LibraryScreen extends HookConsumerWidget {
                           );
                         },
                         decoration: InputDecoration(
-                          hintText: 'Search documents',
+                          hintText: 'Search by name or text inside documents',
                           prefixIcon: Icon(AppIcons.search, size: 20),
                         ),
                       ),
@@ -106,7 +183,12 @@ class LibraryScreen extends HookConsumerWidget {
                   final doc = filtered[index];
                   return DocumentListRow(
                     document: doc,
-                    onTap: () => AppRoutes.openViewer(context, documentId: doc.id),
+                    onTap: selectionMode
+                        ? () => toggleSelected(doc.id)
+                        : () => AppRoutes.openViewer(context, documentId: doc.id),
+                    onLongPress: () => toggleSelected(doc.id),
+                    selectionMode: selectionMode,
+                    selected: selectedIds.value.contains(doc.id),
                   );
                 },
               ),

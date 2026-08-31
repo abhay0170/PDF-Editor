@@ -14,6 +14,7 @@ import '../../../../database/app_database.dart';
 import '../../../../database/database_providers.dart';
 import '../../../../pdf/models/pdf_document_info.dart';
 import '../../../../pdf/pdf_providers.dart';
+import '../../../tools/tool_result_inserter.dart';
 import '../../domain/import_state.dart';
 
 class ImportController extends AsyncNotifier<ImportState> {
@@ -125,6 +126,7 @@ class ImportController extends AsyncNotifier<ImportState> {
     state = AsyncData(ImportSuccess(id));
 
     unawaited(_generateThumbnail(id, path));
+    unawaited(indexDocumentContent(ref, documentId: id, path: path));
   }
 
   Future<void> _generateThumbnail(int documentId, String path) async {

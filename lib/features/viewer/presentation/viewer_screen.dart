@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:printing/printing.dart';
 
 import '../../../app/theme/icons.dart';
 import '../../../app/theme/radii.dart';
@@ -199,11 +202,31 @@ class _ViewerBody extends HookConsumerWidget {
                 showDownloadSizeSheet(context, document);
               },
             ),
+            ListTile(
+              leading: Icon(AppIcons.print),
+              title: const Text('Print'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _printDocument(context, document);
+              },
+            ),
             const SizedBox(height: Spacing.sm),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _printDocument(BuildContext context, Document document) async {
+    try {
+      final bytes = await File(document.path).readAsBytes();
+      await Printing.layoutPdf(name: document.displayName, onLayout: (_) async => bytes);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not print this document.')));
+    }
   }
 
   void _showInfoSheet(

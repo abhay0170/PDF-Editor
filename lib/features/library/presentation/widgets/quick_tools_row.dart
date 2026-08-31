@@ -72,11 +72,12 @@ final List<_QuickTool> _primaryTools = [
     color: ToolColors.rotate,
     onTap: (context) => AppRoutes.openRotate(context),
   ),
-  const _QuickTool(
+  _QuickTool(
     icon: AppIcons.lock,
     label: 'Protect',
     subtitle: 'Lock your PDF',
     color: ToolColors.protect,
+    onTap: (context) => AppRoutes.openProtect(context),
   ),
   const _QuickTool(
     icon: AppIcons.image,
@@ -117,8 +118,9 @@ const int _columns = 3;
 
 /// A fixed 3x3 grid of shortcuts into every tool — shown on the Home screen
 /// (both the empty state and, compactly, above the document list). The
-/// last tile is always "More", which reveals [_moreTools] in an extra row
-/// below rather than replacing any of the nine visible tiles.
+/// last tile is always "More"/"Less" — tapping it inserts [_moreTools]
+/// ahead of it, so the toggle stays the trailing tile in the grid instead
+/// of sitting above the tools it just revealed.
 class QuickToolsRow extends HookWidget {
   const QuickToolsRow({
     super.key,
@@ -136,7 +138,7 @@ class QuickToolsRow extends HookWidget {
   Widget build(BuildContext context) {
     final expanded = useState(false);
 
-    final primaryCells = [
+    final cells = [
       for (final tool in _primaryTools)
         _QuickToolTile(
           icon: tool.icon,
@@ -145,6 +147,17 @@ class QuickToolsRow extends HookWidget {
           color: tool.color,
           onTap: tool.onTap == null ? null : () => tool.onTap!(context),
         ),
+      if (expanded.value)
+        for (final tool in _moreTools)
+          _QuickToolTile(
+            icon: tool.icon,
+            label: tool.label,
+            subtitle: tool.subtitle,
+            color: tool.color,
+            onTap: tool.onTap == null ? null : () => tool.onTap!(context),
+          ),
+      // Kept as the very last cell so it stays a trailing "reveal more"
+      // action even after the extra tools above push it down a row.
       _QuickToolTile(
         icon: expanded.value ? AppIcons.chevronUp : AppIcons.more,
         label: expanded.value ? 'Less' : 'More',
@@ -156,27 +169,7 @@ class QuickToolsRow extends HookWidget {
 
     return Padding(
       padding: padding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ToolGrid(cells: primaryCells),
-          if (expanded.value) ...[
-            const SizedBox(height: Spacing.sm),
-            _ToolGrid(
-              cells: [
-                for (final tool in _moreTools)
-                  _QuickToolTile(
-                    icon: tool.icon,
-                    label: tool.label,
-                    subtitle: tool.subtitle,
-                    color: tool.color,
-                    onTap: tool.onTap == null ? null : () => tool.onTap!(context),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
+      child: _ToolGrid(cells: cells),
     );
   }
 }

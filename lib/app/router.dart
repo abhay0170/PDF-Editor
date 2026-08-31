@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
 import '../features/tools/compress/presentation/compress_screen.dart';
+import '../features/tools/export/presentation/export_screen.dart';
 import '../features/tools/extract/presentation/extract_screen.dart';
 import '../features/tools/merge/presentation/merge_screen.dart';
 import '../features/tools/ocr/presentation/ocr_screen.dart';
+import '../features/tools/protect/presentation/protect_screen.dart';
 import '../features/tools/rotate/presentation/rotate_screen.dart';
 import '../features/tools/scan/presentation/scan_screen.dart';
 import '../features/tools/sign/presentation/sign_screen.dart';
@@ -49,8 +51,10 @@ class AppRoutes {
     ).push(MaterialPageRoute(builder: (_) => ExtractScreen(initialDocument: initialDocument)));
   }
 
-  static Future<void> openScan(BuildContext context) {
-    return Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ScanScreen()));
+  static Future<void> openScan(BuildContext context, {bool autoPickFromGallery = false}) {
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ScanScreen(autoPickFromGallery: autoPickFromGallery)),
+    );
   }
 
   static Future<void> openWatermark(BuildContext context, {Document? initialDocument}) {
@@ -75,5 +79,17 @@ class AppRoutes {
     return Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => OcrScreen(initialDocument: initialDocument)));
+  }
+
+  static Future<void> openExport(BuildContext context, {Document? initialDocument}) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ExportScreen(initialDocument: initialDocument)));
+  }
+
+  static Future<void> openProtect(BuildContext context, {Document? initialDocument}) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ProtectScreen(initialDocument: initialDocument)));
   }
 }

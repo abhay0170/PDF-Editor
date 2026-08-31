@@ -44,6 +44,7 @@ class AppIcons {
   static const IconData reorder = LucideIcons.gripVertical;
   static const IconData watermark = LucideIcons.stamp;
   static const IconData camera = LucideIcons.camera;
+  static const IconData idCard = LucideIcons.idCard;
   static const IconData retake = LucideIcons.refreshCw;
   static const IconData ocr = LucideIcons.fileSearch2;
   static const IconData image = LucideIcons.image;
@@ -53,4 +54,9 @@ class AppIcons {
   static const IconData home = LucideIcons.home;
   static const IconData profile = LucideIcons.circleUserRound;
   static const IconData crown = LucideIcons.crown;
+  static const IconData export = LucideIcons.fileType;
+  static const IconData eye = LucideIcons.eye;
+  static const IconData eyeOff = LucideIcons.eyeOff;
+  static const IconData print = LucideIcons.printer;
+  static const IconData filter = LucideIcons.contrast;
 }

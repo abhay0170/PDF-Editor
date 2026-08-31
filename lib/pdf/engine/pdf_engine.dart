@@ -37,6 +37,11 @@ abstract class PdfEngine {
   /// Sign/OCR) should use this instead of repeated [renderPageAtScale] calls,
   /// each of which reopens and reparses the file from scratch.
   Future<PdfPageBatch> openForRendering(String path, {PdfPasswordProvider? passwordProvider});
+
+  /// Concatenates every page's extracted text (native text layer — same as
+  /// what the in-viewer search uses, not OCR), joined with blank lines.
+  /// Returns an empty string for image-only pages with no extractable text.
+  Future<String> extractText(String path, {PdfPasswordProvider? passwordProvider});
 }
 
 /// A single open document handle used to render multiple pages without
@@ -109,6 +114,26 @@ class PdfrxEngine implements PdfEngine {
   Future<PdfPageBatch> openForRendering(String path, {PdfPasswordProvider? passwordProvider}) async {
     final document = await PdfDocument.openFile(path, passwordProvider: passwordProvider);
     return _PdfrxPageBatch(document);
+  }
+
+  @override
+  Future<String> extractText(String path, {PdfPasswordProvider? passwordProvider}) async {
+    PdfDocument? document;
+    try {
+      document = await PdfDocument.openFile(path, passwordProvider: passwordProvider);
+      final pageTexts = <String>[];
+      for (final page in document.pages) {
+        final text = await page.loadStructuredText();
+        if (text.fullText.trim().isNotEmpty) {
+          pageTexts.add(text.fullText);
+        }
+      }
+      return pageTexts.join('\n\n');
+    } on PdfException {
+      return '';
+    } finally {
+      await document?.dispose();
+    }
   }
 
   Future<Uint8List> _withPage(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app_database.dart';
 import 'daos/bookmark_dao.dart';
 import 'daos/document_dao.dart';
+import 'daos/folder_dao.dart';
 import 'daos/settings_dao.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -21,6 +22,10 @@ final bookmarkDaoProvider = Provider<BookmarkDao>((ref) {
 
 final settingsDaoProvider = Provider<SettingsDao>((ref) {
   return ref.watch(appDatabaseProvider).settingsDao;
+});
+
+final folderDaoProvider = Provider<FolderDao>((ref) {
+  return ref.watch(appDatabaseProvider).folderDao;
 });
 
 final documentByIdProvider = FutureProvider.autoDispose.family<Document?, int>((ref, id) {

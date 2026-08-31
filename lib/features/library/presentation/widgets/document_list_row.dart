@@ -14,10 +14,25 @@ import '../../../../database/database_providers.dart';
 import 'document_thumbnail.dart';
 
 class DocumentListRow extends ConsumerWidget {
-  const DocumentListRow({super.key, required this.document, required this.onTap});
+  const DocumentListRow({
+    super.key,
+    required this.document,
+    required this.onTap,
+    this.onLongPress,
+    this.selectionMode = false,
+    this.selected = false,
+  });
 
   final Document document;
   final VoidCallback onTap;
+
+  /// Starts multi-select from a normal (non-selecting) list.
+  final VoidCallback? onLongPress;
+
+  /// When true, tapping the row toggles [selected] instead of running
+  /// [onTap]'s normal action, and a checkbox replaces the "more" button.
+  final bool selectionMode;
+  final bool selected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,6 +49,7 @@ class DocumentListRow extends ConsumerWidget {
       label: '${document.displayName}, $metadata',
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: Spacing.screenHorizontal,
@@ -43,6 +59,10 @@ class DocumentListRow extends ConsumerWidget {
             height: Spacing.listRowHeight,
             child: Row(
               children: [
+                if (selectionMode) ...[
+                  Checkbox(value: selected, onChanged: (_) => onTap()),
+                  const SizedBox(width: Spacing.sm),
+                ],
                 DocumentThumbnail(document: document, width: 44, height: 58),
                 const SizedBox(width: Spacing.md),
                 Expanded(
@@ -61,11 +81,12 @@ class DocumentListRow extends ConsumerWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: Icon(AppIcons.more, size: 20),
-                  tooltip: 'More options',
-                  onPressed: () => _showActionsSheet(context, ref),
-                ),
+                if (!selectionMode)
+                  IconButton(
+                    icon: Icon(AppIcons.more, size: 20),
+                    tooltip: 'More options',
+                    onPressed: () => _showActionsSheet(context, ref),
+                  ),
               ],
             ),
           ),

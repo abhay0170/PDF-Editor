@@ -89,6 +89,23 @@ class DocumentDao extends DatabaseAccessor<AppDatabase> with _$DocumentDaoMixin 
     );
   }
 
+  Future<void> updateContent(int id, String content) {
+    return (update(documents)..where((t) => t.id.equals(id))).write(
+      DocumentsCompanion(content: Value(content)),
+    );
+  }
+
+  Stream<List<Document>> watchByFolder(int folderId) {
+    return (select(documents)..where((t) => t.folderId.equals(folderId))).watch();
+  }
+
+  /// Pass `null` to unfile the document.
+  Future<void> setFolder(int id, int? folderId) {
+    return (update(documents)..where((t) => t.id.equals(id))).write(
+      DocumentsCompanion(folderId: Value(folderId)),
+    );
+  }
+
   Future<void> markOpened(int id, {required int lastPage}) {
     return (update(documents)..where((t) => t.id.equals(id))).write(
       DocumentsCompanion(
@@ -127,6 +144,10 @@ class DocumentDao extends DatabaseAccessor<AppDatabase> with _$DocumentDaoMixin 
 
   Future<int> deleteById(int id) {
     return (delete(documents)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<int> deleteByIds(List<int> ids) {
+    return (delete(documents)..where((t) => t.id.isIn(ids))).go();
   }
 
   /// Clears [Document.lastOpenedAt] for every document, emptying the Recent

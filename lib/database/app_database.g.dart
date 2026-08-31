@@ -3,6 +3,249 @@
 part of 'app_database.dart';
 
 // ignore_for_file: type=lint
+class $FoldersTable extends Folders with TableInfo<$FoldersTable, Folder> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FoldersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'folders';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Folder> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Folder map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Folder(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FoldersTable createAlias(String alias) {
+    return $FoldersTable(attachedDatabase, alias);
+  }
+}
+
+class Folder extends DataClass implements Insertable<Folder> {
+  final int id;
+  final String name;
+  final DateTime createdAt;
+  const Folder({required this.id, required this.name, required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  FoldersCompanion toCompanion(bool nullToAbsent) {
+    return FoldersCompanion(
+      id: Value(id),
+      name: Value(name),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Folder.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Folder(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  Folder copyWith({int? id, String? name, DateTime? createdAt}) => Folder(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  Folder copyWithCompanion(FoldersCompanion data) {
+    return Folder(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Folder(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Folder &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.createdAt == this.createdAt);
+}
+
+class FoldersCompanion extends UpdateCompanion<Folder> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<DateTime> createdAt;
+  const FoldersCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  FoldersCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    required DateTime createdAt,
+  }) : name = Value(name),
+       createdAt = Value(createdAt);
+  static Insertable<Folder> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  FoldersCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<DateTime>? createdAt,
+  }) {
+    return FoldersCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FoldersCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $DocumentsTable extends Documents
     with TableInfo<$DocumentsTable, Document> {
   @override
@@ -149,6 +392,31 @@ class $DocumentsTable extends Documents
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _folderIdMeta = const VerificationMeta(
+    'folderId',
+  );
+  @override
+  late final GeneratedColumn<int> folderId = GeneratedColumn<int>(
+    'folder_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES folders (id) ON DELETE SET NULL',
+    ),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -163,6 +431,8 @@ class $DocumentsTable extends Documents
     sortOrder,
     isFavorite,
     thumbnailPath,
+    content,
+    folderId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -264,6 +534,18 @@ class $DocumentsTable extends Documents
         ),
       );
     }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('folder_id')) {
+      context.handle(
+        _folderIdMeta,
+        folderId.isAcceptableOrUnknown(data['folder_id']!, _folderIdMeta),
+      );
+    }
     return context;
   }
 
@@ -321,6 +603,14 @@ class $DocumentsTable extends Documents
         DriftSqlType.string,
         data['${effectivePrefix}thumbnail_path'],
       ),
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      ),
+      folderId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}folder_id'],
+      ),
     );
   }
 
@@ -343,6 +633,16 @@ class Document extends DataClass implements Insertable<Document> {
   final int sortOrder;
   final bool isFavorite;
   final String? thumbnailPath;
+
+  /// Concatenated text extracted from every page (best-effort, populated
+  /// asynchronously after insert — see `indexDocumentContent` in
+  /// `tool_result_inserter.dart`). Null until indexing completes or if the
+  /// document has no extractable text (e.g. an un-OCR'd scan).
+  final String? content;
+
+  /// Null means unfiled (shown in "All" but no folder chip). Deleting a
+  /// folder clears this rather than deleting the documents in it.
+  final int? folderId;
   const Document({
     required this.id,
     required this.path,
@@ -356,6 +656,8 @@ class Document extends DataClass implements Insertable<Document> {
     required this.sortOrder,
     required this.isFavorite,
     this.thumbnailPath,
+    this.content,
+    this.folderId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -375,6 +677,12 @@ class Document extends DataClass implements Insertable<Document> {
     map['is_favorite'] = Variable<bool>(isFavorite);
     if (!nullToAbsent || thumbnailPath != null) {
       map['thumbnail_path'] = Variable<String>(thumbnailPath);
+    }
+    if (!nullToAbsent || content != null) {
+      map['content'] = Variable<String>(content);
+    }
+    if (!nullToAbsent || folderId != null) {
+      map['folder_id'] = Variable<int>(folderId);
     }
     return map;
   }
@@ -397,6 +705,12 @@ class Document extends DataClass implements Insertable<Document> {
       thumbnailPath: thumbnailPath == null && nullToAbsent
           ? const Value.absent()
           : Value(thumbnailPath),
+      content: content == null && nullToAbsent
+          ? const Value.absent()
+          : Value(content),
+      folderId: folderId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(folderId),
     );
   }
 
@@ -418,6 +732,8 @@ class Document extends DataClass implements Insertable<Document> {
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       isFavorite: serializer.fromJson<bool>(json['isFavorite']),
       thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
+      content: serializer.fromJson<String?>(json['content']),
+      folderId: serializer.fromJson<int?>(json['folderId']),
     );
   }
   @override
@@ -436,6 +752,8 @@ class Document extends DataClass implements Insertable<Document> {
       'sortOrder': serializer.toJson<int>(sortOrder),
       'isFavorite': serializer.toJson<bool>(isFavorite),
       'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
+      'content': serializer.toJson<String?>(content),
+      'folderId': serializer.toJson<int?>(folderId),
     };
   }
 
@@ -452,6 +770,8 @@ class Document extends DataClass implements Insertable<Document> {
     int? sortOrder,
     bool? isFavorite,
     Value<String?> thumbnailPath = const Value.absent(),
+    Value<String?> content = const Value.absent(),
+    Value<int?> folderId = const Value.absent(),
   }) => Document(
     id: id ?? this.id,
     path: path ?? this.path,
@@ -467,6 +787,8 @@ class Document extends DataClass implements Insertable<Document> {
     thumbnailPath: thumbnailPath.present
         ? thumbnailPath.value
         : this.thumbnailPath,
+    content: content.present ? content.value : this.content,
+    folderId: folderId.present ? folderId.value : this.folderId,
   );
   Document copyWithCompanion(DocumentsCompanion data) {
     return Document(
@@ -492,6 +814,8 @@ class Document extends DataClass implements Insertable<Document> {
       thumbnailPath: data.thumbnailPath.present
           ? data.thumbnailPath.value
           : this.thumbnailPath,
+      content: data.content.present ? data.content.value : this.content,
+      folderId: data.folderId.present ? data.folderId.value : this.folderId,
     );
   }
 
@@ -509,7 +833,9 @@ class Document extends DataClass implements Insertable<Document> {
           ..write('lastPage: $lastPage, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('isFavorite: $isFavorite, ')
-          ..write('thumbnailPath: $thumbnailPath')
+          ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('content: $content, ')
+          ..write('folderId: $folderId')
           ..write(')'))
         .toString();
   }
@@ -528,6 +854,8 @@ class Document extends DataClass implements Insertable<Document> {
     sortOrder,
     isFavorite,
     thumbnailPath,
+    content,
+    folderId,
   );
   @override
   bool operator ==(Object other) =>
@@ -544,7 +872,9 @@ class Document extends DataClass implements Insertable<Document> {
           other.lastPage == this.lastPage &&
           other.sortOrder == this.sortOrder &&
           other.isFavorite == this.isFavorite &&
-          other.thumbnailPath == this.thumbnailPath);
+          other.thumbnailPath == this.thumbnailPath &&
+          other.content == this.content &&
+          other.folderId == this.folderId);
 }
 
 class DocumentsCompanion extends UpdateCompanion<Document> {
@@ -560,6 +890,8 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
   final Value<int> sortOrder;
   final Value<bool> isFavorite;
   final Value<String?> thumbnailPath;
+  final Value<String?> content;
+  final Value<int?> folderId;
   const DocumentsCompanion({
     this.id = const Value.absent(),
     this.path = const Value.absent(),
@@ -573,6 +905,8 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
     this.sortOrder = const Value.absent(),
     this.isFavorite = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
+    this.content = const Value.absent(),
+    this.folderId = const Value.absent(),
   });
   DocumentsCompanion.insert({
     this.id = const Value.absent(),
@@ -587,6 +921,8 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
     this.sortOrder = const Value.absent(),
     this.isFavorite = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
+    this.content = const Value.absent(),
+    this.folderId = const Value.absent(),
   }) : path = Value(path),
        displayName = Value(displayName),
        fileSize = Value(fileSize),
@@ -605,6 +941,8 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
     Expression<int>? sortOrder,
     Expression<bool>? isFavorite,
     Expression<String>? thumbnailPath,
+    Expression<String>? content,
+    Expression<int>? folderId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -619,6 +957,8 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
       if (sortOrder != null) 'sort_order': sortOrder,
       if (isFavorite != null) 'is_favorite': isFavorite,
       if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
+      if (content != null) 'content': content,
+      if (folderId != null) 'folder_id': folderId,
     });
   }
 
@@ -635,6 +975,8 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
     Value<int>? sortOrder,
     Value<bool>? isFavorite,
     Value<String?>? thumbnailPath,
+    Value<String?>? content,
+    Value<int?>? folderId,
   }) {
     return DocumentsCompanion(
       id: id ?? this.id,
@@ -649,6 +991,8 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
       sortOrder: sortOrder ?? this.sortOrder,
       isFavorite: isFavorite ?? this.isFavorite,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      content: content ?? this.content,
+      folderId: folderId ?? this.folderId,
     );
   }
 
@@ -691,6 +1035,12 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
     if (thumbnailPath.present) {
       map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
     }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (folderId.present) {
+      map['folder_id'] = Variable<int>(folderId.value);
+    }
     return map;
   }
 
@@ -708,7 +1058,9 @@ class DocumentsCompanion extends UpdateCompanion<Document> {
           ..write('lastPage: $lastPage, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('isFavorite: $isFavorite, ')
-          ..write('thumbnailPath: $thumbnailPath')
+          ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('content: $content, ')
+          ..write('folderId: $folderId')
           ..write(')'))
         .toString();
   }
@@ -1279,6 +1631,7 @@ class SettingsEntriesCompanion extends UpdateCompanion<SettingsEntry> {
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
+  late final $FoldersTable folders = $FoldersTable(this);
   late final $DocumentsTable documents = $DocumentsTable(this);
   late final $BookmarksTable bookmarks = $BookmarksTable(this);
   late final $SettingsEntriesTable settingsEntries = $SettingsEntriesTable(
@@ -1292,6 +1645,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_documents_display_name',
     'CREATE INDEX idx_documents_display_name ON documents (display_name)',
   );
+  late final Index idxDocumentsFolderId = Index(
+    'idx_documents_folder_id',
+    'CREATE INDEX idx_documents_folder_id ON documents (folder_id)',
+  );
   late final Index idxBookmarksDocumentId = Index(
     'idx_bookmarks_document_id',
     'CREATE INDEX idx_bookmarks_document_id ON bookmarks (document_id)',
@@ -1299,20 +1656,30 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final DocumentDao documentDao = DocumentDao(this as AppDatabase);
   late final BookmarkDao bookmarkDao = BookmarkDao(this as AppDatabase);
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
+  late final FolderDao folderDao = FolderDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
+    folders,
     documents,
     bookmarks,
     settingsEntries,
     idxDocumentsLastOpened,
     idxDocumentsDisplayName,
+    idxDocumentsFolderId,
     idxBookmarksDocumentId,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'folders',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('documents', kind: UpdateKind.update)],
+    ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'documents',
@@ -1323,6 +1690,251 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ]);
 }
 
+typedef $$FoldersTableCreateCompanionBuilder =
+    FoldersCompanion Function({
+      Value<int> id,
+      required String name,
+      required DateTime createdAt,
+    });
+typedef $$FoldersTableUpdateCompanionBuilder =
+    FoldersCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<DateTime> createdAt,
+    });
+
+final class $$FoldersTableReferences
+    extends BaseReferences<_$AppDatabase, $FoldersTable, Folder> {
+  $$FoldersTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$DocumentsTable, List<Document>>
+  _documentsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.documents,
+    aliasName: 'folders__id__documents__folder_id',
+  );
+
+  $$DocumentsTableProcessedTableManager get documentsRefs {
+    final manager = $$DocumentsTableTableManager(
+      $_db,
+      $_db.documents,
+    ).filter((f) => f.folderId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_documentsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$FoldersTableFilterComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> documentsRefs(
+    Expression<bool> Function($$DocumentsTableFilterComposer f) f,
+  ) {
+    final $$DocumentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.documents,
+      getReferencedColumn: (t) => t.folderId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentsTableFilterComposer(
+            $db: $db,
+            $table: $db.documents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$FoldersTableOrderingComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FoldersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  Expression<T> documentsRefs<T extends Object>(
+    Expression<T> Function($$DocumentsTableAnnotationComposer a) f,
+  ) {
+    final $$DocumentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.documents,
+      getReferencedColumn: (t) => t.folderId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.documents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$FoldersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FoldersTable,
+          Folder,
+          $$FoldersTableFilterComposer,
+          $$FoldersTableOrderingComposer,
+          $$FoldersTableAnnotationComposer,
+          $$FoldersTableCreateCompanionBuilder,
+          $$FoldersTableUpdateCompanionBuilder,
+          (Folder, $$FoldersTableReferences),
+          Folder,
+          PrefetchHooks Function({bool documentsRefs})
+        > {
+  $$FoldersTableTableManager(_$AppDatabase db, $FoldersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FoldersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FoldersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FoldersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => FoldersCompanion(id: id, name: name, createdAt: createdAt),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                required DateTime createdAt,
+              }) => FoldersCompanion.insert(
+                id: id,
+                name: name,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FoldersTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({documentsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (documentsRefs) db.documents],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (documentsRefs)
+                    await $_getPrefetchedData<Folder, $FoldersTable, Document>(
+                      currentTable: table,
+                      referencedTable: $$FoldersTableReferences
+                          ._documentsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$FoldersTableReferences(db, table, p0).documentsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.folderId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$FoldersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FoldersTable,
+      Folder,
+      $$FoldersTableFilterComposer,
+      $$FoldersTableOrderingComposer,
+      $$FoldersTableAnnotationComposer,
+      $$FoldersTableCreateCompanionBuilder,
+      $$FoldersTableUpdateCompanionBuilder,
+      (Folder, $$FoldersTableReferences),
+      Folder,
+      PrefetchHooks Function({bool documentsRefs})
+    >;
 typedef $$DocumentsTableCreateCompanionBuilder =
     DocumentsCompanion Function({
       Value<int> id,
@@ -1337,6 +1949,8 @@ typedef $$DocumentsTableCreateCompanionBuilder =
       Value<int> sortOrder,
       Value<bool> isFavorite,
       Value<String?> thumbnailPath,
+      Value<String?> content,
+      Value<int?> folderId,
     });
 typedef $$DocumentsTableUpdateCompanionBuilder =
     DocumentsCompanion Function({
@@ -1352,11 +1966,30 @@ typedef $$DocumentsTableUpdateCompanionBuilder =
       Value<int> sortOrder,
       Value<bool> isFavorite,
       Value<String?> thumbnailPath,
+      Value<String?> content,
+      Value<int?> folderId,
     });
 
 final class $$DocumentsTableReferences
     extends BaseReferences<_$AppDatabase, $DocumentsTable, Document> {
   $$DocumentsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $FoldersTable _folderIdTable(_$AppDatabase db) =>
+      db.folders.createAlias('documents__folder_id__folders__id');
+
+  $$FoldersTableProcessedTableManager? get folderId {
+    final $_column = $_itemColumn<int>('folder_id');
+    if ($_column == null) return null;
+    final manager = $$FoldersTableTableManager(
+      $_db,
+      $_db.folders,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_folderIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 
   static MultiTypedResultKey<$BookmarksTable, List<Bookmark>>
   _bookmarksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
@@ -1445,6 +2078,34 @@ class $$DocumentsTableFilterComposer
     column: $table.thumbnailPath,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$FoldersTableFilterComposer get folderId {
+    final $$FoldersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.folderId,
+      referencedTable: $db.folders,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FoldersTableFilterComposer(
+            $db: $db,
+            $table: $db.folders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   Expression<bool> bookmarksRefs(
     Expression<bool> Function($$BookmarksTableFilterComposer f) f,
@@ -1540,6 +2201,34 @@ class $$DocumentsTableOrderingComposer
     column: $table.thumbnailPath,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$FoldersTableOrderingComposer get folderId {
+    final $$FoldersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.folderId,
+      referencedTable: $db.folders,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FoldersTableOrderingComposer(
+            $db: $db,
+            $table: $db.folders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$DocumentsTableAnnotationComposer
@@ -1597,6 +2286,32 @@ class $$DocumentsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  $$FoldersTableAnnotationComposer get folderId {
+    final $$FoldersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.folderId,
+      referencedTable: $db.folders,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FoldersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.folders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<T> bookmarksRefs<T extends Object>(
     Expression<T> Function($$BookmarksTableAnnotationComposer a) f,
   ) {
@@ -1636,7 +2351,7 @@ class $$DocumentsTableTableManager
           $$DocumentsTableUpdateCompanionBuilder,
           (Document, $$DocumentsTableReferences),
           Document,
-          PrefetchHooks Function({bool bookmarksRefs})
+          PrefetchHooks Function({bool folderId, bool bookmarksRefs})
         > {
   $$DocumentsTableTableManager(_$AppDatabase db, $DocumentsTable table)
     : super(
@@ -1663,6 +2378,8 @@ class $$DocumentsTableTableManager
                 Value<int> sortOrder = const Value.absent(),
                 Value<bool> isFavorite = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
+                Value<String?> content = const Value.absent(),
+                Value<int?> folderId = const Value.absent(),
               }) => DocumentsCompanion(
                 id: id,
                 path: path,
@@ -1676,6 +2393,8 @@ class $$DocumentsTableTableManager
                 sortOrder: sortOrder,
                 isFavorite: isFavorite,
                 thumbnailPath: thumbnailPath,
+                content: content,
+                folderId: folderId,
               ),
           createCompanionCallback:
               ({
@@ -1691,6 +2410,8 @@ class $$DocumentsTableTableManager
                 Value<int> sortOrder = const Value.absent(),
                 Value<bool> isFavorite = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
+                Value<String?> content = const Value.absent(),
+                Value<int?> folderId = const Value.absent(),
               }) => DocumentsCompanion.insert(
                 id: id,
                 path: path,
@@ -1704,6 +2425,8 @@ class $$DocumentsTableTableManager
                 sortOrder: sortOrder,
                 isFavorite: isFavorite,
                 thumbnailPath: thumbnailPath,
+                content: content,
+                folderId: folderId,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -1713,11 +2436,42 @@ class $$DocumentsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({bookmarksRefs = false}) {
+          prefetchHooksCallback: ({folderId = false, bookmarksRefs = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [if (bookmarksRefs) db.bookmarks],
-              addJoins: null,
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (folderId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.folderId,
+                                referencedTable: $$DocumentsTableReferences
+                                    ._folderIdTable(db),
+                                referencedColumn: $$DocumentsTableReferences
+                                    ._folderIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (bookmarksRefs)
@@ -1759,7 +2513,7 @@ typedef $$DocumentsTableProcessedTableManager =
       $$DocumentsTableUpdateCompanionBuilder,
       (Document, $$DocumentsTableReferences),
       Document,
-      PrefetchHooks Function({bool bookmarksRefs})
+      PrefetchHooks Function({bool folderId, bool bookmarksRefs})
     >;
 typedef $$BookmarksTableCreateCompanionBuilder =
     BookmarksCompanion Function({
@@ -2221,6 +2975,8 @@ typedef $$SettingsEntriesTableProcessedTableManager =
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
+  $$FoldersTableTableManager get folders =>
+      $$FoldersTableTableManager(_db, _db.folders);
   $$DocumentsTableTableManager get documents =>
       $$DocumentsTableTableManager(_db, _db.documents);
   $$BookmarksTableTableManager get bookmarks =>

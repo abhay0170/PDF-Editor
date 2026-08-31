@@ -23,3 +23,19 @@ final libraryDocumentsProvider = StreamProvider<List<Document>>((ref) {
 final recentDocumentsProvider = StreamProvider<List<Document>>((ref) {
   return ref.watch(documentDaoProvider).watchRecent();
 });
+
+final foldersProvider = StreamProvider<List<Folder>>((ref) {
+  return ref.watch(folderDaoProvider).watchAll();
+});
+
+/// Null means "All" — no folder filter applied on the Documents tab.
+class SelectedFolderNotifier extends Notifier<int?> {
+  @override
+  int? build() => null;
+
+  void select(int? folderId) => state = folderId;
+}
+
+final selectedFolderProvider = NotifierProvider<SelectedFolderNotifier, int?>(
+  SelectedFolderNotifier.new,
+);

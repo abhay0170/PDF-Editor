@@ -5,6 +5,7 @@ import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../../app/router.dart';
@@ -12,17 +13,30 @@ import '../../../../app/theme/icons.dart';
 import '../../../../app/theme/radii.dart';
 import '../../../../app/theme/spacing.dart';
 import '../../../../pdf/rotate_image.dart';
+import '../../../../pdf/scan_image_filters.dart';
 import '../../domain/tool_run_state.dart';
 import 'crop_page_screen.dart';
 import 'providers/scan_controller.dart';
 import 'widgets/scan_save_sheet.dart';
 
 class ScanScreen extends HookConsumerWidget {
-  const ScanScreen({super.key});
+  const ScanScreen({super.key, this.autoPickFromGallery = false});
+
+  /// When true, immediately opens the gallery picker on first frame instead
+  /// of waiting for the user to tap a button — used by the home screen's
+  /// "Photos" quick-add option.
+  final bool autoPickFromGallery;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pages = useState<List<String>>(const []);
+    // Maps a page's current file path back to the pre-filter capture it was
+    // derived from, so switching Grayscale -> Black & white -> Original
+    // always starts from the same source instead of compounding filters (or
+    // "original" being unable to undo one). Rotate/crop write a brand-new
+    // path with no entry here, which is correct — filters apply on top of
+    // whatever crop/rotation is currently in effect.
+    final filterBaseline = useState<Map<String, String>>({});
     final scanState = ref.watch(scanControllerProvider);
     final isProcessing = scanState.value is ToolProcessing;
 
@@ -66,6 +80,36 @@ class ScanScreen extends HookConsumerWidget {
       }
     }
 
+    // ID cards are typically scanned front and back, so this defaults to two
+    // captures instead of the single-page default used for documents.
+    Future<void> scanIdCard() => scanMore(noOfPages: 2);
+
+    // Deliberately not cunning_document_scanner's gallery source: that opens
+    // a generic ACTION_GET_CONTENT intent, which on many Android devices
+    // resolves to a chooser listing "Camera" alongside the gallery apps.
+    // image_picker's gallery picker opens the photo grid directly.
+    Future<void> pickFromGallery() async {
+      try {
+        final picked = await ImagePicker().pickMultiImage();
+        if (picked.isNotEmpty) {
+          pages.value = [...pages.value, ...picked.map((file) => file.path)];
+        }
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Could not open photos.')));
+        }
+      }
+    }
+
+    useEffect(() {
+      if (autoPickFromGallery) {
+        pickFromGallery();
+      }
+      return null;
+    }, const []);
+
     Future<void> rotatePage(int index) async {
       final path = pages.value[index];
       final bytes = await File(path).readAsBytes();
@@ -92,6 +136,59 @@ class ScanScreen extends HookConsumerWidget {
       pages.value = list;
     }
 
+    Future<void> retakePage(int index) async {
+      try {
+        final captured = await CunningDocumentScanner.getPictures(
+          scannerSource: ScannerSource.camera,
+          noOfPages: 1,
+        );
+        if (captured == null || captured.isEmpty) return;
+        final list = [...pages.value];
+        list[index] = captured.first;
+        pages.value = list;
+      } on CunningDocumentScannerException catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        }
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Could not retake this page.')));
+        }
+      }
+    }
+
+    Future<void> applyFilter(int index, ScanFilter filter) async {
+      final path = pages.value[index];
+      final baselinePath = filterBaseline.value[path] ?? path;
+      if (filter == ScanFilter.original) {
+        final list = [...pages.value];
+        list[index] = baselinePath;
+        pages.value = list;
+        return;
+      }
+      try {
+        final bytes = await File(baselinePath).readAsBytes();
+        final filtered = await applyScanFilter(bytes, filter);
+        final newPath = p.join(
+          p.dirname(path),
+          '${DateTime.now().microsecondsSinceEpoch}_filtered.png',
+        );
+        await File(newPath).writeAsBytes(filtered);
+        final list = [...pages.value];
+        list[index] = newPath;
+        pages.value = list;
+        filterBaseline.value = {...filterBaseline.value, newPath: baselinePath};
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Could not apply that filter.')));
+        }
+      }
+    }
+
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -114,13 +211,19 @@ class ScanScreen extends HookConsumerWidget {
                     FilledButton.icon(
                       onPressed: () => scanMore(noOfPages: 1),
                       icon: Icon(AppIcons.camera),
-                      label: const Text('Scan one page'),
+                      label: const Text('Scan a document'),
                     ),
                     const SizedBox(height: Spacing.sm),
                     OutlinedButton.icon(
                       onPressed: () => scanMore(noOfPages: 100),
                       icon: Icon(AppIcons.scan),
                       label: const Text('Scan multiple pages'),
+                    ),
+                    const SizedBox(height: Spacing.sm),
+                    OutlinedButton.icon(
+                      onPressed: scanIdCard,
+                      icon: Icon(AppIcons.idCard),
+                      label: const Text('Scan an ID card'),
                     ),
                   ],
                 ),
@@ -150,6 +253,8 @@ class ScanScreen extends HookConsumerWidget {
                     },
                     onRotate: () => rotatePage(i),
                     onCrop: () => cropPage(i),
+                    onRetake: () => retakePage(i),
+                    onFilter: (filter) => applyFilter(i, filter),
                   ),
                 Padding(
                   key: const ValueKey('scan-more'),
@@ -169,6 +274,14 @@ class ScanScreen extends HookConsumerWidget {
                           onPressed: () => scanMore(noOfPages: 100),
                           icon: Icon(AppIcons.scan, size: 18),
                           label: const Text('Add multiple'),
+                        ),
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: scanIdCard,
+                          icon: Icon(AppIcons.idCard, size: 18),
+                          label: const Text('Add ID card'),
                         ),
                       ),
                     ],
@@ -201,6 +314,8 @@ class _ScannedPageRow extends StatelessWidget {
     required this.onRemove,
     required this.onRotate,
     required this.onCrop,
+    required this.onRetake,
+    required this.onFilter,
   });
 
   final String imagePath;
@@ -208,6 +323,8 @@ class _ScannedPageRow extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onRotate;
   final VoidCallback onCrop;
+  final VoidCallback onRetake;
+  final ValueChanged<ScanFilter> onFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +349,17 @@ class _ScannedPageRow extends StatelessWidget {
           Expanded(
             child: Text('Page $pageNumber', style: theme.textTheme.bodyLarge),
           ),
+          PopupMenuButton<ScanFilter>(
+            icon: Icon(AppIcons.filter, size: 18),
+            tooltip: 'Filter',
+            onSelected: onFilter,
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: ScanFilter.original, child: Text('Original')),
+              PopupMenuItem(value: ScanFilter.grayscale, child: Text('Grayscale')),
+              PopupMenuItem(value: ScanFilter.blackAndWhite, child: Text('Black & white')),
+            ],
+          ),
+          IconButton(icon: Icon(AppIcons.retake, size: 18), tooltip: 'Retake', onPressed: onRetake),
           IconButton(icon: Icon(AppIcons.crop, size: 18), tooltip: 'Crop', onPressed: onCrop),
           IconButton(icon: Icon(AppIcons.rotate, size: 18), tooltip: 'Rotate', onPressed: onRotate),
           IconButton(icon: Icon(AppIcons.close, size: 18), tooltip: 'Remove', onPressed: onRemove),

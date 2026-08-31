@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -21,7 +22,7 @@ Future<int> insertToolResult(Ref ref, {required String path, required String dis
   final fileSize = await File(path).length();
   final now = DateTime.now();
 
-  return ref.read(documentDaoProvider).insertDocument(
+  final id = await ref.read(documentDaoProvider).insertDocument(
     DocumentsCompanion.insert(
       path: path,
       displayName: displayName,
@@ -31,4 +32,21 @@ Future<int> insertToolResult(Ref ref, {required String path, required String dis
       modifiedAt: now,
     ),
   );
+
+  unawaited(indexDocumentContent(ref, documentId: id, path: path));
+  return id;
+}
+
+/// Extracts and stores [Document.content] for library-wide search — best
+/// effort, same fire-and-forget shape as thumbnail generation, since it must
+/// never delay a document showing up after import/scan/a tool run.
+Future<void> indexDocumentContent(Ref ref, {required int documentId, required String path}) async {
+  try {
+    final text = await ref.read(pdfEngineProvider).extractText(path);
+    if (text.isNotEmpty) {
+      await ref.read(documentDaoProvider).updateContent(documentId, text);
+    }
+  } catch (_) {
+    // Best-effort; the document just won't be content-searchable.
+  }
 }
