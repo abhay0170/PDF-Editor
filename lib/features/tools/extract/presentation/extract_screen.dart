@@ -21,8 +21,7 @@ class ExtractScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedDocument = useState<Document?>(initialDocument);
     final pagesController = useTextEditingController();
-    final extractState = ref.watch(extractControllerProvider);
-    final isProcessing = extractState.value is ToolProcessing;
+    final isProcessing = ref.watch(extractControllerProvider.select((s) => s.value is ToolProcessing));
 
     ref.listen<AsyncValue<ExtractState>>(extractControllerProvider, (previous, next) {
       final value = next.value;

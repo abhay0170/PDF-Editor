@@ -5,6 +5,13 @@ import 'package:pdf_reader/database/app_database.dart';
 import 'package:pdf_reader/features/library/presentation/library_screen.dart';
 import 'package:pdf_reader/features/library/presentation/providers/library_providers.dart';
 
+/// Both tests below render [LibraryScreen], which includes `FolderChipsRow`
+/// once the document list is non-empty — without this override that widget
+/// watches `foldersProvider` down to a real `appDatabaseProvider`, opening an
+/// actual native sqlite connection whose setup timer outlives a single
+/// `tester.pump()` and trips the framework's "no pending timers" invariant.
+final _noFoldersOverride = foldersProvider.overrideWith((ref) => Stream.value(const []));
+
 Document _document({required int id, required String name}) {
   final now = DateTime(2026, 1, 1);
   return Document(
@@ -28,6 +35,7 @@ void main() {
         overrides: [
           libraryDocumentsProvider.overrideWith((ref) => Stream.value(const [])),
           recentDocumentsProvider.overrideWith((ref) => Stream.value(const [])),
+          _noFoldersOverride,
         ],
         child: const MaterialApp(home: LibraryScreen()),
       ),
@@ -49,6 +57,7 @@ void main() {
         overrides: [
           libraryDocumentsProvider.overrideWith((ref) => Stream.value(documents)),
           recentDocumentsProvider.overrideWith((ref) => Stream.value(const [])),
+          _noFoldersOverride,
         ],
         child: const MaterialApp(home: LibraryScreen()),
       ),

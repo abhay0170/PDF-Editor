@@ -50,12 +50,24 @@ class InlineDocumentPicker extends ConsumerWidget {
               )
             else ...[
               Divider(height: 1, color: theme.dividerColor),
-              for (final doc in documents)
-                _DocumentRow(
-                  document: doc,
-                  selected: selected?.id == doc.id,
-                  onTap: () => onSelected(doc),
-                ),
+              // Nested inside the parent screen's own ListView, so this stays
+              // non-scrolling and shrink-wrapped — but still built lazily via
+              // `.builder` rather than materializing every row (each with a
+              // decoded thumbnail) up front regardless of library size.
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: documents.length,
+                itemBuilder: (context, index) {
+                  final doc = documents[index];
+                  return _DocumentRow(
+                    key: ValueKey(doc.id),
+                    document: doc,
+                    selected: selected?.id == doc.id,
+                    onTap: () => onSelected(doc),
+                  );
+                },
+              ),
             ],
           ],
         );
@@ -65,7 +77,7 @@ class InlineDocumentPicker extends ConsumerWidget {
 }
 
 class _DocumentRow extends StatelessWidget {
-  const _DocumentRow({required this.document, required this.selected, required this.onTap});
+  const _DocumentRow({super.key, required this.document, required this.selected, required this.onTap});
 
   final Document document;
   final bool selected;

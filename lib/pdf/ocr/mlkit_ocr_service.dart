@@ -1,11 +1,11 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:image/image.dart' as img;
-import 'package:path/path.dart' as p;
 import 'package:pdf/pdf.dart' as pdf_lib;
+import 'package:path/path.dart' as p;
 
-import '../../core/errors/pdf_exceptions.dart';
+import '../../core/utils/image_recompress.dart';
 import '../engine/pdf_engine.dart';
 import 'ocr_service.dart';
 
@@ -13,6 +13,10 @@ import 'ocr_service.dart';
 /// output page's background — 2.0x native point size gives text recognition
 /// enough resolution to work with while keeping output file size reasonable.
 const double _ocrScale = 2.0;
+
+/// JPEG quality used when re-encoding each rendered page before it's
+/// embedded as the output page's background image.
+const int _ocrJpegQuality = 90;
 
 class MlKitOcrService implements OcrService {
   MlKitOcrService(this._engine);
@@ -33,25 +37,23 @@ class MlKitOcrService implements OcrService {
 
       for (var pageNumber = 1; pageNumber <= batch.pageCount; pageNumber++) {
         final pngBytes = await batch.renderPage(pageNumber, scale: _ocrScale);
-        final decoded = img.decodePng(pngBytes);
-        if (decoded == null) {
-          throw const PdfManipulationException('Could not process a rendered page.');
-        }
-        final jpegBytes = img.encodeJpg(decoded, quality: 90);
+        final page = await compute(recompressPngPageForOcr, (pngBytes, _ocrJpegQuality));
+        final jpegBytes = page.jpegBytes;
         final imagePath = p.join(tempDir.path, 'page_$pageNumber.jpg');
         await File(imagePath).writeAsBytes(jpegBytes);
 
         RecognizedText recognized;
         try {
           recognized = await recognizer.processImage(InputImage.fromFilePath(imagePath));
-        } catch (_) {
+        } catch (e) {
           // A single unreadable page shouldn't fail the whole document — it
           // simply carries through with no text layer of its own.
+          debugPrint('OCR: page $pageNumber could not be recognized: $e');
           recognized = RecognizedText(text: '', blocks: const []);
         }
 
-        final pageWidth = decoded.width * pointsPerPixel;
-        final pageHeight = decoded.height * pointsPerPixel;
+        final pageWidth = page.width * pointsPerPixel;
+        final pageHeight = page.height * pointsPerPixel;
 
         final pdfPage = pdf_lib.PdfPage(document, pageFormat: pdf_lib.PdfPageFormat(pageWidth, pageHeight));
         final graphics = pdfPage.getGraphics();
@@ -81,10 +83,11 @@ class MlKitOcrService implements OcrService {
                   scale: horizontalScale,
                 );
                 recognizedChars += text.length;
-              } catch (_) {
+              } catch (e) {
                 // Helvetica can only encode Latin-1; a stray glyph
                 // _sanitizeForLatin1 didn't catch shouldn't sink the rest of
                 // the document's text layer.
+                debugPrint('OCR: dropped an unencodable text run on page $pageNumber: $e');
               }
             }
           }
@@ -109,14 +112,19 @@ class MlKitOcrService implements OcrService {
   /// equivalents and anything else still unencodable is dropped, rather
   /// than letting one bad character abort the rest of the document's text
   /// layer.
+  static final RegExp _singleQuotes = RegExp('[‘’‚′]');
+  static final RegExp _doubleQuotes = RegExp('[“”„″]');
+  static final RegExp _dashes = RegExp('[–—]');
+  static final RegExp _bullets = RegExp('[•●◦]');
+
   String _sanitizeForLatin1(String text) {
     final mapped = text
-        .replaceAll(RegExp('[‘’‚′]'), "'")
-        .replaceAll(RegExp('[“”„″]'), '"')
-        .replaceAll(RegExp('[–—]'), '-')
+        .replaceAll(_singleQuotes, "'")
+        .replaceAll(_doubleQuotes, '"')
+        .replaceAll(_dashes, '-')
         .replaceAll('…', '...')
-        .replaceAll(RegExp('[•●◦]'), '*')
-        .replaceAll(' ', ' ');
+        .replaceAll(_bullets, '*')
+        .replaceAll(' ', ' ');
     final buffer = StringBuffer();
     for (final rune in mapped.runes) {
       if (rune <= 0xFF) buffer.writeCharCode(rune);

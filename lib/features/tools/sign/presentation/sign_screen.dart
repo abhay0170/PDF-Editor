@@ -71,8 +71,7 @@ class SignScreen extends HookConsumerWidget {
       }
     }
 
-    final signState = ref.watch(signControllerProvider);
-    final isProcessing = signState.value is ToolProcessing;
+    final isProcessing = ref.watch(signControllerProvider.select((s) => s.value is ToolProcessing));
 
     useEffect(() {
       pageNumber.value = selectedDocument.value?.pageCount ?? 1;
@@ -104,6 +103,7 @@ class SignScreen extends HookConsumerWidget {
       var cancelled = false;
       ui.instantiateImageCodec(bytes).then((codec) => codec.getNextFrame()).then((frame) {
         if (!cancelled) pageAspect.value = frame.image.width / frame.image.height;
+        frame.image.dispose();
       });
       return () => cancelled = true;
     }, [pagePreviewBytes.value]);

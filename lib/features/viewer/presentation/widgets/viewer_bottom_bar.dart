@@ -45,7 +45,7 @@ class ViewerBottomBar extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             IconButton(
-              icon: Icon(AppIcons.search),
+              icon: const Icon(AppIcons.search),
               tooltip: 'Search',
               onPressed: onSearch,
             ),
@@ -58,7 +58,7 @@ class ViewerBottomBar extends StatelessWidget {
               onPressed: onToggleBookmark,
             ),
             IconButton(
-              icon: Icon(AppIcons.info),
+              icon: const Icon(AppIcons.info),
               tooltip: 'Document info',
               onPressed: onInfo,
             ),

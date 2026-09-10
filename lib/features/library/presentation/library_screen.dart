@@ -35,12 +35,15 @@ class LibraryScreen extends HookConsumerWidget {
 
     final documents = documentsAsync.value ?? const <Document>[];
     final query = searchQuery.value.toLowerCase();
-    final filtered = documents.where((d) {
-      if (selectedFolder != null && d.folderId != selectedFolder) return false;
-      if (query.isEmpty) return true;
-      return d.displayName.toLowerCase().contains(query) ||
-          (d.content?.toLowerCase().contains(query) ?? false);
-    }).toList();
+    final filtered = useMemoized(
+      () => documents.where((d) {
+        if (selectedFolder != null && d.folderId != selectedFolder) return false;
+        if (query.isEmpty) return true;
+        return d.displayName.toLowerCase().contains(query) ||
+            (d.content?.toLowerCase().contains(query) ?? false);
+      }).toList(),
+      [documents, selectedFolder, query],
+    );
 
     void clearSelection() => selectedIds.value = const {};
 
@@ -72,14 +75,22 @@ class LibraryScreen extends HookConsumerWidget {
       if (confirmed != true) return;
 
       final toDelete = documents.where((d) => ids.contains(d.id)).toList();
-      await ref.read(documentDaoProvider).deleteByIds(ids.toList());
-      for (final doc in toDelete) {
-        final file = File(doc.path);
-        if (file.existsSync()) await file.delete();
-        final thumbPath = doc.thumbnailPath;
-        if (thumbPath != null && File(thumbPath).existsSync()) {
-          await File(thumbPath).delete();
-        }
+      try {
+        await ref.read(documentDaoProvider).deleteByIds(ids.toList());
+        await Future.wait(toDelete.map((doc) async {
+          final file = File(doc.path);
+          if (await file.exists()) await file.delete();
+          final thumbPath = doc.thumbnailPath;
+          if (thumbPath != null && await File(thumbPath).exists()) {
+            await File(thumbPath).delete();
+          }
+        }));
+      } catch (e) {
+        debugPrint('Delete selected documents failed: $e');
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Some documents could not be deleted.')),
+        );
       }
       clearSelection();
     }
@@ -116,9 +127,12 @@ class LibraryScreen extends HookConsumerWidget {
             ),
       body: documentsAsync.when(
         loading: () => const _LibrarySkeleton(),
-        error: (error, _) => Center(
-          child: Text('Something went wrong loading your library.', style: Theme.of(context).textTheme.bodyMedium),
-        ),
+        error: (error, stackTrace) {
+          debugPrint('Library failed to load: $error\n$stackTrace');
+          return Center(
+            child: Text('Something went wrong loading your library.', style: Theme.of(context).textTheme.bodyMedium),
+          );
+        },
         data: (_) {
           if (documents.isEmpty) {
             return LibraryEmptyState(
@@ -182,6 +196,7 @@ class LibraryScreen extends HookConsumerWidget {
                 itemBuilder: (_, index) {
                   final doc = filtered[index];
                   return DocumentListRow(
+                    key: ValueKey(doc.id),
                     document: doc,
                     onTap: selectionMode
                         ? () => toggleSelected(doc.id)

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -44,8 +45,9 @@ class ImportController extends AsyncNotifier<ImportState> {
   Future<void> cancelPendingImport(String copiedPath) async {
     try {
       await File(copiedPath).delete();
-    } catch (_) {
+    } catch (e) {
       // Best-effort cleanup.
+      debugPrint('cancelPendingImport: could not delete $copiedPath: $e');
     }
     state = const AsyncData(ImportIdle());
   }
@@ -98,8 +100,9 @@ class ImportController extends AsyncNotifier<ImportState> {
       case PdfProbeCorrupted(:final message):
         try {
           await File(copiedPath).delete();
-        } catch (_) {
+        } catch (e) {
           // Best-effort cleanup; leaving an orphaned file is harmless.
+          debugPrint('_finishImport: could not delete corrupted $copiedPath: $e');
         }
         state = AsyncData(ImportCorrupted(message));
       case PdfProbeMissingFile():
@@ -147,9 +150,10 @@ class ImportController extends AsyncNotifier<ImportState> {
 
       ref.read(thumbnailCacheProvider).put(documentId, pngBytes);
       await ref.read(documentDaoProvider).updateThumbnailPath(documentId, thumbPath);
-    } catch (_) {
+    } catch (e) {
       // Thumbnail generation is best-effort; the library falls back to a
       // placeholder icon if this never completes.
+      debugPrint('_generateThumbnail failed for document $documentId: $e');
     }
   }
 

@@ -19,8 +19,7 @@ class OcrScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedDocument = useState<Document?>(initialDocument);
-    final ocrState = ref.watch(ocrControllerProvider);
-    final isProcessing = ocrState.value is ToolProcessing;
+    final isProcessing = ref.watch(ocrControllerProvider.select((s) => s.value is ToolProcessing));
 
     ref.listen<AsyncValue<OcrState>>(ocrControllerProvider, (previous, next) {
       final value = next.value;

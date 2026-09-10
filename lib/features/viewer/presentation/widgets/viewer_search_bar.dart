@@ -19,7 +19,7 @@ class ViewerSearchBar extends HookWidget {
     final controller = useTextEditingController();
 
     final resultLabel = searcher.hasMatches
-        ? '${searcher.currentIndex! + 1} / ${searcher.matches.length}'
+        ? '${(searcher.currentIndex ?? 0) + 1} / ${searcher.matches.length}'
         : (searcher.isSearching ? 'Searching…' : (controller.text.isEmpty ? '' : 'No results'));
 
     return Container(

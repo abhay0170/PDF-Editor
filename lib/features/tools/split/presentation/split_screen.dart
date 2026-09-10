@@ -23,8 +23,7 @@ class SplitScreen extends HookConsumerWidget {
       TextEditingController(),
       TextEditingController(),
     ]);
-    final splitState = ref.watch(splitControllerProvider);
-    final isProcessing = splitState.value is ToolProcessing;
+    final isProcessing = ref.watch(splitControllerProvider.select((s) => s.value is ToolProcessing));
 
     // partControllers is a dynamic list (parts can be added/removed), so it
     // can't use the auto-disposing useTextEditingController hook — dispose

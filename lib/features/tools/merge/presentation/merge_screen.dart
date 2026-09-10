@@ -24,8 +24,7 @@ class MergeScreen extends HookConsumerWidget {
     final documentsAsync = ref.watch(libraryDocumentsProvider);
     final initial = initialDocument;
     final selected = useState<List<Document>>(initial == null ? const [] : [initial]);
-    final mergeState = ref.watch(mergeControllerProvider);
-    final isProcessing = mergeState.value is ToolProcessing;
+    final isProcessing = ref.watch(mergeControllerProvider.select((s) => s.value is ToolProcessing));
 
     ref.listen<AsyncValue<MergeState>>(mergeControllerProvider, (previous, next) {
       final value = next.value;
@@ -105,32 +104,44 @@ class MergeScreen extends HookConsumerWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: Spacing.md),
-                ReorderableListView(
+                ReorderableListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  onReorder: (oldIndex, newIndex) {
+                  onReorderItem: (oldIndex, newIndex) {
                     final list = [...selected.value];
-                    if (newIndex > oldIndex) newIndex -= 1;
                     final item = list.removeAt(oldIndex);
                     list.insert(newIndex, item);
                     selected.value = list;
                   },
-                  children: [
-                    for (final document in selected.value)
-                      _SelectedRow(key: ValueKey(document.id), document: document, onRemove: () => toggle(document)),
-                  ],
+                  itemCount: selected.value.length,
+                  itemBuilder: (context, index) {
+                    final document = selected.value[index];
+                    return _SelectedRow(
+                      key: ValueKey(document.id),
+                      document: document,
+                      onRemove: () => toggle(document),
+                    );
+                  },
                 ),
                 const SizedBox(height: Spacing.sectionSpacing),
               ],
               Text('All Documents', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: Spacing.md),
               ImportPdfRow(onTap: importNew),
-              for (final document in documents)
-                _CheckableRow(
-                  document: document,
-                  checked: selected.value.any((d) => d.id == document.id),
-                  onChanged: () => toggle(document),
-                ),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: documents.length,
+                itemBuilder: (context, index) {
+                  final document = documents[index];
+                  return _CheckableRow(
+                    key: ValueKey(document.id),
+                    document: document,
+                    checked: selected.value.any((d) => d.id == document.id),
+                    onChanged: () => toggle(document),
+                  );
+                },
+              ),
               const SizedBox(height: Spacing.fabClearance),
             ],
           );
@@ -154,7 +165,7 @@ class MergeScreen extends HookConsumerWidget {
 }
 
 class _CheckableRow extends StatelessWidget {
-  const _CheckableRow({required this.document, required this.checked, required this.onChanged});
+  const _CheckableRow({super.key, required this.document, required this.checked, required this.onChanged});
 
   final Document document;
   final bool checked;

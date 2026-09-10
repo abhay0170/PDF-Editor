@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -33,7 +34,11 @@ class OcrController extends AsyncNotifier<OcrState> {
           .makeSearchable(sourcePath: source.path, outputPath: outputPath);
 
       if (recognizedChars == 0) {
-        await File(outputPath).delete().catchError((_) => File(outputPath));
+        try {
+          await File(outputPath).delete();
+        } catch (e) {
+          debugPrint('makeSearchable: could not delete empty-result $outputPath: $e');
+        }
         state = const AsyncData(ToolError('No text was found in this document.'));
         return;
       }
@@ -42,7 +47,8 @@ class OcrController extends AsyncNotifier<OcrState> {
       state = AsyncData(ToolSuccess(documentId));
     } on PdfManipulationException catch (e) {
       state = AsyncData(ToolError(e.message));
-    } catch (_) {
+    } catch (e) {
+      debugPrint('makeSearchable failed: $e');
       state = const AsyncData(ToolError('Could not recognize text in this document.'));
     }
   }

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show Uint8List, compute, debugPrint;
 import 'package:path/path.dart' as p;
 import 'package:pdf_combiner/models/merge_input.dart';
 import 'package:pdf_combiner/pdf_combiner.dart';
@@ -33,7 +33,8 @@ class PdfCombinerManipulationService implements PdfManipulationService {
         inputs: sourcePaths.map(MergeInput.path).toList(),
         outputPath: outputPath,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('PDF merge failed: $e');
       throw const PdfManipulationException('Could not merge these documents.');
     }
   }
@@ -116,7 +117,8 @@ class PdfCombinerManipulationService implements PdfManipulationService {
         outputPath: outputPath,
       );
       return outputPath;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('PDF createPdfFromImages failed: $e');
       throw const PdfManipulationException('Could not assemble the scanned pages into a PDF.');
     }
   }
@@ -150,7 +152,8 @@ class PdfCombinerManipulationService implements PdfManipulationService {
           inputs: imagePaths.map(MergeInput.path).toList(),
           outputPath: outputPath,
         );
-      } catch (_) {
+      } catch (e) {
+        debugPrint('PDF watermarkPdf assembly failed: $e');
         throw const PdfManipulationException('Could not assemble the watermarked PDF.');
       }
       return outputPath;
@@ -186,7 +189,8 @@ class PdfCombinerManipulationService implements PdfManipulationService {
           inputs: imagePaths.map(MergeInput.path).toList(),
           outputPath: outputPath,
         );
-      } catch (_) {
+      } catch (e) {
+        debugPrint('PDF compressPdf assembly failed: $e');
         throw const PdfManipulationException('Could not assemble the compressed PDF.');
       }
       return outputPath;
@@ -233,7 +237,8 @@ class PdfCombinerManipulationService implements PdfManipulationService {
           inputs: imagePaths.map(MergeInput.path).toList(),
           outputPath: outputPath,
         );
-      } catch (_) {
+      } catch (e) {
+        debugPrint('PDF signPdf assembly failed: $e');
         throw const PdfManipulationException('Could not assemble the signed PDF.');
       }
       return outputPath;
@@ -267,7 +272,8 @@ class PdfCombinerManipulationService implements PdfManipulationService {
           inputs: imagePaths.map(MergeInput.path).toList(),
           outputPath: outputPath,
         );
-      } catch (_) {
+      } catch (e) {
+        debugPrint('PDF assembly failed: $e');
         throw const PdfManipulationException('Could not assemble the resulting PDF.');
       }
       return outputPath;

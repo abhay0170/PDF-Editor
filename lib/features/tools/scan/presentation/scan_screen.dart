@@ -1,22 +1,18 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/icons.dart';
 import '../../../../app/theme/radii.dart';
 import '../../../../app/theme/spacing.dart';
-import '../../../../pdf/rotate_image.dart';
-import '../../../../pdf/scan_image_filters.dart';
 import '../../domain/tool_run_state.dart';
-import 'crop_page_screen.dart';
 import 'providers/scan_controller.dart';
+import 'providers/scan_draft_controller.dart';
 import 'widgets/scan_save_sheet.dart';
 
 class ScanScreen extends HookConsumerWidget {
@@ -30,21 +26,21 @@ class ScanScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pages = useState<List<String>>(const []);
-    // Maps a page's current file path back to the pre-filter capture it was
-    // derived from, so switching Grayscale -> Black & white -> Original
-    // always starts from the same source instead of compounding filters (or
-    // "original" being unable to undo one). Rotate/crop write a brand-new
-    // path with no entry here, which is correct — filters apply on top of
-    // whatever crop/rotation is currently in effect.
-    final filterBaseline = useState<Map<String, String>>({});
+    final draftAsync = ref.watch(scanDraftControllerProvider);
     final scanState = ref.watch(scanControllerProvider);
     final isProcessing = scanState.value is ToolProcessing;
+
+    void setPages(List<String> next) {
+      pages.value = next;
+      ref.read(scanDraftControllerProvider.notifier).save(next);
+    }
 
     ref.listen<AsyncValue<ScanState>>(scanControllerProvider, (previous, next) {
       final value = next.value;
       switch (value) {
         case ToolSuccess(:final result):
           ref.read(scanControllerProvider.notifier).reset();
+          ref.read(scanDraftControllerProvider.notifier).clear();
           CunningDocumentScanner.cleanCache().catchError((_) {});
           Navigator.of(context).pop();
           AppRoutes.openViewer(context, documentId: result);
@@ -65,7 +61,7 @@ class ScanScreen extends HookConsumerWidget {
           noOfPages: noOfPages,
         );
         if (captured != null && captured.isNotEmpty) {
-          pages.value = [...pages.value, ...captured];
+          setPages([...pages.value, ...captured]);
         }
       } on CunningDocumentScannerException catch (e) {
         if (context.mounted) {
@@ -80,10 +76,6 @@ class ScanScreen extends HookConsumerWidget {
       }
     }
 
-    // ID cards are typically scanned front and back, so this defaults to two
-    // captures instead of the single-page default used for documents.
-    Future<void> scanIdCard() => scanMore(noOfPages: 2);
-
     // Deliberately not cunning_document_scanner's gallery source: that opens
     // a generic ACTION_GET_CONTENT intent, which on many Android devices
     // resolves to a chooser listing "Camera" alongside the gallery apps.
@@ -92,7 +84,7 @@ class ScanScreen extends HookConsumerWidget {
       try {
         final picked = await ImagePicker().pickMultiImage();
         if (picked.isNotEmpty) {
-          pages.value = [...pages.value, ...picked.map((file) => file.path)];
+          setPages([...pages.value, ...picked.map((file) => file.path)]);
         }
       } catch (_) {
         if (context.mounted) {
@@ -103,38 +95,39 @@ class ScanScreen extends HookConsumerWidget {
       }
     }
 
+    // Skips this screen's own "choose a scan type" landing entirely: the
+    // camera (or gallery picker) opens the instant this screen is pushed —
+    // unless a draft from a previous, unfinished scan is waiting on disk
+    // (the user scanned at least one page last time and then closed the
+    // app rather than saving or discarding), in which case those pages are
+    // restored instead so nothing is lost. Document vs. ID card vs. passport
+    // mode is selected inside the native scanner's own UI, not by a
+    // separate button here. If the user cancels a fresh scan without
+    // capturing anything, there's nothing left to show, so this just backs
+    // out instead of stranding them on a blank screen.
     useEffect(() {
-      if (autoPickFromGallery) {
-        pickFromGallery();
+      if (draftAsync.isLoading) return null;
+
+      Future<void> autoStart() async {
+        final draft = draftAsync.value ?? const [];
+        if (draft.isNotEmpty) {
+          pages.value = draft;
+          return;
+        }
+
+        if (autoPickFromGallery) {
+          await pickFromGallery();
+        } else {
+          await scanMore(noOfPages: 100);
+        }
+        if (pages.value.isEmpty && context.mounted) {
+          Navigator.of(context).pop();
+        }
       }
+
+      autoStart();
       return null;
-    }, const []);
-
-    Future<void> rotatePage(int index) async {
-      final path = pages.value[index];
-      final bytes = await File(path).readAsBytes();
-      final rotated = await rotateImageBytes(bytes, 90);
-      final newPath = p.join(p.dirname(path), '${DateTime.now().microsecondsSinceEpoch}_rotated.png');
-      await File(newPath).writeAsBytes(rotated);
-      final list = [...pages.value];
-      list[index] = newPath;
-      pages.value = list;
-    }
-
-    Future<void> cropPage(int index) async {
-      final path = pages.value[index];
-      final bytes = await File(path).readAsBytes();
-      if (!context.mounted) return;
-      final cropped = await Navigator.of(
-        context,
-      ).push<Uint8List>(MaterialPageRoute(builder: (_) => CropPageScreen(imageBytes: bytes)));
-      if (cropped == null) return;
-      final newPath = p.join(p.dirname(path), '${DateTime.now().microsecondsSinceEpoch}_cropped.png');
-      await File(newPath).writeAsBytes(cropped);
-      final list = [...pages.value];
-      list[index] = newPath;
-      pages.value = list;
-    }
+    }, [draftAsync.isLoading]);
 
     Future<void> retakePage(int index) async {
       try {
@@ -145,7 +138,7 @@ class ScanScreen extends HookConsumerWidget {
         if (captured == null || captured.isEmpty) return;
         final list = [...pages.value];
         list[index] = captured.first;
-        pages.value = list;
+        setPages(list);
       } on CunningDocumentScannerException catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
@@ -159,135 +152,59 @@ class ScanScreen extends HookConsumerWidget {
       }
     }
 
-    Future<void> applyFilter(int index, ScanFilter filter) async {
-      final path = pages.value[index];
-      final baselinePath = filterBaseline.value[path] ?? path;
-      if (filter == ScanFilter.original) {
-        final list = [...pages.value];
-        list[index] = baselinePath;
-        pages.value = list;
-        return;
-      }
-      try {
-        final bytes = await File(baselinePath).readAsBytes();
-        final filtered = await applyScanFilter(bytes, filter);
-        final newPath = p.join(
-          p.dirname(path),
-          '${DateTime.now().microsecondsSinceEpoch}_filtered.png',
-        );
-        await File(newPath).writeAsBytes(filtered);
-        final list = [...pages.value];
-        list[index] = newPath;
-        pages.value = list;
-        filterBaseline.value = {...filterBaseline.value, newPath: baselinePath};
-      } catch (_) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Could not apply that filter.')));
-        }
-      }
+    void viewPage(String imagePath) {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => _PagePreviewScreen(imagePath: imagePath)));
     }
-
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Scan to PDF')),
       body: pages.value.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(Spacing.xxxl),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(AppIcons.scan, size: 48, color: theme.textTheme.bodySmall?.color),
-                    const SizedBox(height: Spacing.lg),
-                    Text(
-                      'Scan a document with your camera — edges and lighting are corrected automatically.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: Spacing.xxl),
-                    FilledButton.icon(
-                      onPressed: () => scanMore(noOfPages: 1),
-                      icon: Icon(AppIcons.camera),
-                      label: const Text('Scan a document'),
-                    ),
-                    const SizedBox(height: Spacing.sm),
-                    OutlinedButton.icon(
-                      onPressed: () => scanMore(noOfPages: 100),
-                      icon: Icon(AppIcons.scan),
-                      label: const Text('Scan multiple pages'),
-                    ),
-                    const SizedBox(height: Spacing.sm),
-                    OutlinedButton.icon(
-                      onPressed: scanIdCard,
-                      icon: Icon(AppIcons.idCard),
-                      label: const Text('Scan an ID card'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          : ReorderableListView(
+          ? const Center(child: CircularProgressIndicator())
+          : ReorderableListView.builder(
               padding: const EdgeInsets.symmetric(
                 horizontal: Spacing.screenHorizontal,
                 vertical: Spacing.lg,
               ),
-              onReorder: (oldIndex, newIndex) {
+              onReorderItem: (oldIndex, newIndex) {
                 final list = [...pages.value];
-                if (newIndex > oldIndex) newIndex -= 1;
                 final item = list.removeAt(oldIndex);
                 list.insert(newIndex, item);
-                pages.value = list;
+                setPages(list);
               },
-              children: [
-                for (var i = 0; i < pages.value.length; i++)
-                  _ScannedPageRow(
-                    key: ValueKey(pages.value[i]),
-                    imagePath: pages.value[i],
-                    pageNumber: i + 1,
-                    onRemove: () {
-                      final list = [...pages.value]..removeAt(i);
-                      pages.value = list;
-                    },
-                    onRotate: () => rotatePage(i),
-                    onCrop: () => cropPage(i),
-                    onRetake: () => retakePage(i),
-                    onFilter: (filter) => applyFilter(i, filter),
-                  ),
-                Padding(
-                  key: const ValueKey('scan-more'),
-                  padding: const EdgeInsets.only(top: Spacing.sm, bottom: Spacing.fabClearance),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => scanMore(noOfPages: 1),
-                          icon: Icon(AppIcons.camera, size: 18),
-                          label: const Text('Add one'),
-                        ),
-                      ),
-                      const SizedBox(width: Spacing.sm),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => scanMore(noOfPages: 100),
-                          icon: Icon(AppIcons.scan, size: 18),
-                          label: const Text('Add multiple'),
-                        ),
-                      ),
-                      const SizedBox(width: Spacing.sm),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: scanIdCard,
-                          icon: Icon(AppIcons.idCard, size: 18),
-                          label: const Text('Add ID card'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              itemCount: pages.value.length + 1,
+              itemBuilder: (context, index) {
+                if (index == pages.value.length) {
+                  return Padding(
+                    key: const ValueKey('scan-more'),
+                    padding: const EdgeInsets.only(top: Spacing.sm, bottom: Spacing.fabClearance),
+                    child: OutlinedButton.icon(
+                      onPressed: () => scanMore(noOfPages: 100),
+                      icon: Icon(AppIcons.camera, size: 18),
+                      label: const Text('Add more'),
+                    ),
+                  );
+                }
+
+                final imagePath = pages.value[index];
+                return _ScannedPageRow(
+                  key: ValueKey(imagePath),
+                  imagePath: imagePath,
+                  pageNumber: index + 1,
+                  onView: () => viewPage(imagePath),
+                  onRemove: () {
+                    final list = [...pages.value]..removeAt(index);
+                    setPages(list);
+                    // Nothing left to show or resume — back out rather than
+                    // stranding the user on a permanent loading spinner.
+                    if (list.isEmpty && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  onRetake: () => retakePage(index),
+                );
+              },
             ),
       floatingActionButton: pages.value.isEmpty
           ? null
@@ -311,20 +228,18 @@ class _ScannedPageRow extends StatelessWidget {
     super.key,
     required this.imagePath,
     required this.pageNumber,
+    required this.onView,
     required this.onRemove,
-    required this.onRotate,
-    required this.onCrop,
     required this.onRetake,
-    required this.onFilter,
   });
 
   final String imagePath;
   final int pageNumber;
+  final VoidCallback onView;
   final VoidCallback onRemove;
-  final VoidCallback onRotate;
-  final VoidCallback onCrop;
   final VoidCallback onRetake;
-  final ValueChanged<ScanFilter> onFilter;
+
+  static const double _thumbnailHeight = 52;
 
   @override
   Widget build(BuildContext context) {
@@ -341,29 +256,47 @@ class _ScannedPageRow extends StatelessWidget {
         children: [
           Icon(AppIcons.reorder, size: 18, color: theme.textTheme.bodySmall?.color),
           const SizedBox(width: Spacing.sm),
-          ClipRRect(
+          InkWell(
+            onTap: onView,
             borderRadius: Radii.smallRadius,
-            child: Image.file(File(imagePath), width: 40, height: 52, fit: BoxFit.cover),
+            child: ClipRRect(
+              borderRadius: Radii.smallRadius,
+              child: Image.file(File(imagePath), width: 40, height: _thumbnailHeight, fit: BoxFit.cover),
+            ),
           ),
           const SizedBox(width: Spacing.md),
           Expanded(
-            child: Text('Page $pageNumber', style: theme.textTheme.bodyLarge),
-          ),
-          PopupMenuButton<ScanFilter>(
-            icon: Icon(AppIcons.filter, size: 18),
-            tooltip: 'Filter',
-            onSelected: onFilter,
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: ScanFilter.original, child: Text('Original')),
-              PopupMenuItem(value: ScanFilter.grayscale, child: Text('Grayscale')),
-              PopupMenuItem(value: ScanFilter.blackAndWhite, child: Text('Black & white')),
-            ],
+            child: SizedBox(
+              height: _thumbnailHeight,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Text('Page $pageNumber', style: theme.textTheme.bodyLarge),
+              ),
+            ),
           ),
           IconButton(icon: Icon(AppIcons.retake, size: 18), tooltip: 'Retake', onPressed: onRetake),
-          IconButton(icon: Icon(AppIcons.crop, size: 18), tooltip: 'Crop', onPressed: onCrop),
-          IconButton(icon: Icon(AppIcons.rotate, size: 18), tooltip: 'Rotate', onPressed: onRotate),
           IconButton(icon: Icon(AppIcons.close, size: 18), tooltip: 'Remove', onPressed: onRemove),
         ],
+      ),
+    );
+  }
+}
+
+class _PagePreviewScreen extends StatelessWidget {
+  const _PagePreviewScreen({required this.imagePath});
+
+  final String imagePath;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Center(
+        child: InteractiveViewer(child: Image.file(File(imagePath))),
       ),
     );
   }

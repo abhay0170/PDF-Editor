@@ -31,3 +31,18 @@ Uint8List recompressImageAsJpeg((Uint8List imageBytes, int quality) args) {
   }
   return img.encodeJpg(decoded, quality: quality);
 }
+
+/// Same decode/encode as [recompressPngAsJpeg], but also returns the decoded
+/// page's pixel dimensions — used by the OCR pipeline, which needs them for
+/// point-space text placement and would otherwise have to decode the PNG a
+/// second time back on the calling isolate.
+({Uint8List jpegBytes, int width, int height}) recompressPngPageForOcr(
+  (Uint8List pngBytes, int quality) args,
+) {
+  final (pngBytes, quality) = args;
+  final decoded = img.decodePng(pngBytes);
+  if (decoded == null) {
+    throw const PdfManipulationException('Could not process a rendered page.');
+  }
+  return (jpegBytes: img.encodeJpg(decoded, quality: quality), width: decoded.width, height: decoded.height);
+}

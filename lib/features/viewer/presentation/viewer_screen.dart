@@ -45,6 +45,12 @@ class ViewerScreen extends HookConsumerWidget {
   }
 }
 
+/// Split into narrow `Consumer`/[ConsumerWidget] layers below rather than one
+/// `ref.watch` of the whole [ViewerState] — a page turn or toolbar toggle
+/// previously rebuilt this entire widget, including reconstructing
+/// [PdfViewer.file]'s `params` (and its closures) from scratch on every
+/// frame. Now only the top bar and bottom bar rebuild on their respective
+/// state changes, and the PDF viewer itself keeps a stable `params` instance.
 class _ViewerBody extends HookConsumerWidget {
   const _ViewerBody({required this.document});
 
@@ -52,16 +58,33 @@ class _ViewerBody extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final viewerState = ref.watch(viewerControllerProvider(document.id));
-    final viewerNotifier = ref.read(viewerControllerProvider(document.id).notifier);
-    final searcher = viewerState.searcher;
+    final provider = viewerControllerProvider(document.id);
+    final controller = ref.watch(provider.select((s) => s.controller));
+    final searcher = ref.watch(provider.select((s) => s.searcher));
+    final viewerNotifier = ref.read(provider.notifier);
 
     final searchActive = useState(false);
-    final bookmarksAsync = ref.watch(bookmarksForDocumentProvider(document.id));
-    final bookmarks = bookmarksAsync.value ?? const <Bookmark>[];
-    final currentBookmark = bookmarks.where((b) => b.page == viewerState.currentPage).firstOrNull;
-
     final theme = Theme.of(context);
+    final backgroundColor = theme.scaffoldBackgroundColor;
+
+    final params = useMemoized(
+      () => buildPdfViewerParams(
+        backgroundColor: backgroundColor,
+        viewerOverlayBuilder: (context, size, handleLinkTap) => [
+          PdfOverlayInteractionRegion(
+            onTap: (_) {
+              viewerNotifier.toggleToolbar();
+              return true;
+            },
+            child: SizedBox(width: size.width, height: size.height),
+          ),
+        ],
+        errorBannerBuilder: (context, error, stackTrace, documentRef) =>
+            _ViewerMessage(message: _messageForError(error)),
+        onViewerReady: (document, controller) => viewerNotifier.attachSearcherIfNeeded(),
+      ),
+      [document.id, backgroundColor],
+    );
 
     // SizedBox.expand forces tight constraints onto the Stack regardless of
     // what the Scaffold body passes down. Without it, a Stack with a
@@ -74,23 +97,9 @@ class _ViewerBody extends HookConsumerWidget {
           Positioned.fill(
             child: PdfViewer.file(
               document.path,
-              controller: viewerState.controller,
+              controller: controller,
               initialPageNumber: document.lastPage > 0 ? document.lastPage : 1,
-              params: buildPdfViewerParams(
-                backgroundColor: theme.scaffoldBackgroundColor,
-                viewerOverlayBuilder: (context, size, handleLinkTap) => [
-                  PdfOverlayInteractionRegion(
-                    onTap: (_) {
-                      viewerNotifier.toggleToolbar();
-                      return true;
-                    },
-                    child: SizedBox(width: size.width, height: size.height),
-                  ),
-                ],
-                errorBannerBuilder: (context, error, stackTrace, documentRef) =>
-                    _ViewerMessage(message: _messageForError(error)),
-                onViewerReady: (document, controller) => viewerNotifier.attachSearcherIfNeeded(),
-              ),
+              params: params,
             ),
           ),
           if (searchActive.value && searcher != null)
@@ -108,21 +117,11 @@ class _ViewerBody extends HookConsumerWidget {
               top: 0,
               left: 0,
               right: 0,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 200),
-                offset: viewerState.toolbarVisible ? Offset.zero : const Offset(0, -1),
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 180),
-                  opacity: viewerState.toolbarVisible ? 1 : 0,
-                  child: IgnorePointer(
-                    ignoring: !viewerState.toolbarVisible,
-                    child: ViewerTopBar(
-                      title: document.displayName,
-                      onBack: () => Navigator.of(context).pop(),
-                      onMore: () => _showMoreSheet(context, ref, document),
-                    ),
-                  ),
-                ),
+              child: _ViewerTopBarLayer(
+                documentId: document.id,
+                title: document.displayName,
+                onBack: () => Navigator.of(context).pop(),
+                onMore: () => _showMoreSheet(context, document),
               ),
             ),
           if (!searchActive.value)
@@ -130,23 +129,11 @@ class _ViewerBody extends HookConsumerWidget {
               left: 0,
               right: 0,
               bottom: 0,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 200),
-                offset: viewerState.toolbarVisible ? Offset.zero : const Offset(0, 1),
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 180),
-                  opacity: viewerState.toolbarVisible ? 1 : 0,
-                  child: IgnorePointer(
-                    ignoring: !viewerState.toolbarVisible,
-                    child: ViewerBottomBar(
-                      isBookmarked: currentBookmark != null,
-                      onSearch: searcher == null ? null : () => searchActive.value = true,
-                      onToggleBookmark: () =>
-                          _toggleBookmark(ref, document, viewerState.currentPage, currentBookmark),
-                      onInfo: () => _showInfoSheet(context, document, bookmarks, viewerState.controller),
-                    ),
-                  ),
-                ),
+              child: _ViewerBottomBarLayer(
+                document: document,
+                controller: controller,
+                canSearch: searcher != null,
+                onSearch: () => searchActive.value = true,
               ),
             ),
         ],
@@ -154,7 +141,7 @@ class _ViewerBody extends HookConsumerWidget {
     );
   }
 
-  String _messageForError(Object error) {
+  static String _messageForError(Object error) {
     return switch (error) {
       PdfPasswordException() => const PdfPasswordRequiredException().message,
       PdfException() => const PdfCorruptedException().message,
@@ -162,23 +149,7 @@ class _ViewerBody extends HookConsumerWidget {
     };
   }
 
-  Future<void> _toggleBookmark(
-    WidgetRef ref,
-    Document document,
-    int page,
-    Bookmark? existing,
-  ) async {
-    final dao = ref.read(bookmarkDaoProvider);
-    if (existing != null) {
-      await dao.deleteById(existing.id);
-    } else {
-      await dao.insertBookmark(
-        BookmarksCompanion.insert(documentId: document.id, page: page, createdAt: DateTime.now()),
-      );
-    }
-  }
-
-  void _showMoreSheet(BuildContext context, WidgetRef ref, Document document) {
+  static void _showMoreSheet(BuildContext context, Document document) {
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: Radii.bottomSheetTop),
@@ -217,11 +188,12 @@ class _ViewerBody extends HookConsumerWidget {
     );
   }
 
-  Future<void> _printDocument(BuildContext context, Document document) async {
+  static Future<void> _printDocument(BuildContext context, Document document) async {
     try {
       final bytes = await File(document.path).readAsBytes();
       await Printing.layoutPdf(name: document.displayName, onLayout: (_) async => bytes);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Print document failed: $e');
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -229,7 +201,7 @@ class _ViewerBody extends HookConsumerWidget {
     }
   }
 
-  void _showInfoSheet(
+  static void _showInfoSheet(
     BuildContext context,
     Document document,
     List<Bookmark> bookmarks,
@@ -275,6 +247,102 @@ class _ViewerBody extends HookConsumerWidget {
         );
       },
     );
+  }
+}
+
+/// Watches only [ViewerState.toolbarVisible] — a page turn (which changes
+/// `currentPage`) no longer rebuilds the top bar.
+class _ViewerTopBarLayer extends ConsumerWidget {
+  const _ViewerTopBarLayer({
+    required this.documentId,
+    required this.title,
+    required this.onBack,
+    required this.onMore,
+  });
+
+  final int documentId;
+  final String title;
+  final VoidCallback onBack;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final toolbarVisible = ref.watch(
+      viewerControllerProvider(documentId).select((s) => s.toolbarVisible),
+    );
+    return AnimatedSlide(
+      duration: const Duration(milliseconds: 200),
+      offset: toolbarVisible ? Offset.zero : const Offset(0, -1),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: toolbarVisible ? 1 : 0,
+        child: IgnorePointer(
+          ignoring: !toolbarVisible,
+          child: ViewerTopBar(title: title, onBack: onBack, onMore: onMore),
+        ),
+      ),
+    );
+  }
+}
+
+/// Watches [ViewerState.toolbarVisible] and [ViewerState.currentPage] plus
+/// the document's bookmarks — isolated from the top bar and the PDF viewer
+/// itself so neither rebuilds when only the current page changes.
+class _ViewerBottomBarLayer extends ConsumerWidget {
+  const _ViewerBottomBarLayer({
+    required this.document,
+    required this.controller,
+    required this.canSearch,
+    required this.onSearch,
+  });
+
+  final Document document;
+  final PdfViewerController controller;
+  final bool canSearch;
+  final VoidCallback onSearch;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = viewerControllerProvider(document.id);
+    final toolbarVisible = ref.watch(provider.select((s) => s.toolbarVisible));
+    final currentPage = ref.watch(provider.select((s) => s.currentPage));
+    final bookmarksAsync = ref.watch(bookmarksForDocumentProvider(document.id));
+    final bookmarks = bookmarksAsync.value ?? const <Bookmark>[];
+    final currentBookmark = bookmarks.where((b) => b.page == currentPage).firstOrNull;
+
+    return AnimatedSlide(
+      duration: const Duration(milliseconds: 200),
+      offset: toolbarVisible ? Offset.zero : const Offset(0, 1),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: toolbarVisible ? 1 : 0,
+        child: IgnorePointer(
+          ignoring: !toolbarVisible,
+          child: ViewerBottomBar(
+            isBookmarked: currentBookmark != null,
+            onSearch: canSearch ? onSearch : null,
+            onToggleBookmark: () => _toggleBookmark(ref, document, currentPage, currentBookmark),
+            onInfo: () => _ViewerBody._showInfoSheet(context, document, bookmarks, controller),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Future<void> _toggleBookmark(
+    WidgetRef ref,
+    Document document,
+    int page,
+    Bookmark? existing,
+  ) async {
+    final dao = ref.read(bookmarkDaoProvider);
+    if (existing != null) {
+      await dao.deleteById(existing.id);
+    } else {
+      await dao.insertBookmark(
+        BookmarksCompanion.insert(documentId: document.id, page: page, createdAt: DateTime.now()),
+      );
+    }
   }
 }
 

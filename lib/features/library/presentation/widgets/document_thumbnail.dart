@@ -47,11 +47,21 @@ class DocumentThumbnail extends ConsumerWidget {
 
     final cachedBytes = ref.read(thumbnailCacheProvider).get(document.id);
 
+    // Thumbnails are stored at a fixed larger resolution (CacheConstants) but
+    // usually displayed much smaller (e.g. a 40x52 list row); decoding at the
+    // display size instead of the stored size avoids holding a full-size
+    // decoded bitmap in memory for every row on screen.
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (width * devicePixelRatio).round();
+    final cacheHeight = (height * devicePixelRatio).round();
+
     final image = cachedBytes != null
         ? Image.memory(
             cachedBytes,
             width: width,
             height: height,
+            cacheWidth: cacheWidth,
+            cacheHeight: cacheHeight,
             fit: BoxFit.cover,
             gaplessPlayback: true,
           )
@@ -59,6 +69,8 @@ class DocumentThumbnail extends ConsumerWidget {
             File(thumbnailPath),
             width: width,
             height: height,
+            cacheWidth: cacheWidth,
+            cacheHeight: cacheHeight,
             fit: BoxFit.cover,
             gaplessPlayback: true,
             errorBuilder: (_, _, _) => placeholder(),

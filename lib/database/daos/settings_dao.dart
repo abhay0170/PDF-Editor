@@ -26,4 +26,8 @@ class SettingsDao extends DatabaseAccessor<AppDatabase> with _$SettingsDaoMixin 
     final query = select(settingsEntries)..where((t) => t.key.equals(key));
     return query.watchSingleOrNull().map((row) => row?.value);
   }
+
+  Future<void> remove(String key) {
+    return (delete(settingsEntries)..where((t) => t.key.equals(key))).go();
+  }
 }

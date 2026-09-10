@@ -23,8 +23,7 @@ class RotateScreen extends HookConsumerWidget {
     final rotateAllPages = useState(true);
     final pagesController = useTextEditingController();
     final degrees = useState(90);
-    final rotateState = ref.watch(rotateControllerProvider);
-    final isProcessing = rotateState.value is ToolProcessing;
+    final isProcessing = ref.watch(rotateControllerProvider.select((s) => s.value is ToolProcessing));
 
     ref.listen<AsyncValue<RotateState>>(rotateControllerProvider, (previous, next) {
       final value = next.value;

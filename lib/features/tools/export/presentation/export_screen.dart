@@ -19,8 +19,7 @@ class ExportScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedDocument = useState<Document?>(initialDocument);
     final format = useState(ExportFormat.txt);
-    final exportState = ref.watch(exportControllerProvider);
-    final isProcessing = exportState.value is ToolProcessing;
+    final isProcessing = ref.watch(exportControllerProvider.select((s) => s.value is ToolProcessing));
 
     ref.listen<AsyncValue<ExportState>>(exportControllerProvider, (previous, next) {
       final value = next.value;

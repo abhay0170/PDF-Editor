@@ -25,9 +25,8 @@ class CompressScreen extends HookConsumerWidget {
     final selectedDocument = useState<Document?>(initialDocument);
     final quality = useState(70.0);
     final originalSize = useState<int?>(null);
-    final compressState = ref.watch(compressControllerProvider);
     final estimateState = ref.watch(compressEstimateControllerProvider);
-    final isProcessing = compressState.value is ToolProcessing;
+    final isProcessing = ref.watch(compressControllerProvider.select((s) => s.value is ToolProcessing));
 
     useEffect(() {
       final document = selectedDocument.value;

@@ -20,8 +20,7 @@ class WatermarkScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedDocument = useState<Document?>(initialDocument);
     final textController = useTextEditingController();
-    final watermarkState = ref.watch(watermarkControllerProvider);
-    final isProcessing = watermarkState.value is ToolProcessing;
+    final isProcessing = ref.watch(watermarkControllerProvider.select((s) => s.value is ToolProcessing));
 
     ref.listen<AsyncValue<WatermarkState>>(watermarkControllerProvider, (previous, next) {
       final value = next.value;

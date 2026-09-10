@@ -24,11 +24,12 @@ class ProtectScreen extends HookConsumerWidget {
     final mode = useState(_ProtectMode.addPassword);
     final password = useTextEditingController();
     final confirmPassword = useTextEditingController();
-    useListenable(password);
-    useListenable(confirmPassword);
+    final passwordsListenable = useMemoized(
+      () => Listenable.merge([password, confirmPassword]),
+      [password, confirmPassword],
+    );
     final obscure = useState(true);
-    final protectState = ref.watch(protectControllerProvider);
-    final isProcessing = protectState.value is ToolProcessing;
+    final isProcessing = ref.watch(protectControllerProvider.select((s) => s.value is ToolProcessing));
 
     ref.listen<AsyncValue<ProtectState>>(protectControllerProvider, (previous, next) {
       final value = next.value;
@@ -50,13 +51,6 @@ class ProtectScreen extends HookConsumerWidget {
     final theme = Theme.of(context);
     final document = selectedDocument.value;
     final isAdding = mode.value == _ProtectMode.addPassword;
-    final passwordsMismatch =
-        isAdding && confirmPassword.text.isNotEmpty && password.text != confirmPassword.text;
-    final canSubmit =
-        document != null &&
-        !isProcessing &&
-        password.text.isNotEmpty &&
-        (!isAdding || password.text == confirmPassword.text);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Protect')),
@@ -79,28 +73,39 @@ class ProtectScreen extends HookConsumerWidget {
             onSelectionChanged: (selection) => mode.value = selection.first,
           ),
           const SizedBox(height: Spacing.xxl),
-          TextField(
-            controller: password,
-            obscureText: obscure.value,
-            decoration: InputDecoration(
-              labelText: isAdding ? 'New password' : 'Current password',
-              suffixIcon: IconButton(
-                icon: Icon(obscure.value ? AppIcons.eyeOff : AppIcons.eye),
-                onPressed: () => obscure.value = !obscure.value,
-              ),
-            ),
+          AnimatedBuilder(
+            animation: passwordsListenable,
+            builder: (context, _) {
+              final passwordsMismatch =
+                  isAdding && confirmPassword.text.isNotEmpty && password.text != confirmPassword.text;
+              return Column(
+                children: [
+                  TextField(
+                    controller: password,
+                    obscureText: obscure.value,
+                    decoration: InputDecoration(
+                      labelText: isAdding ? 'New password' : 'Current password',
+                      suffixIcon: IconButton(
+                        icon: Icon(obscure.value ? AppIcons.eyeOff : AppIcons.eye),
+                        onPressed: () => obscure.value = !obscure.value,
+                      ),
+                    ),
+                  ),
+                  if (isAdding) ...[
+                    const SizedBox(height: Spacing.md),
+                    TextField(
+                      controller: confirmPassword,
+                      obscureText: obscure.value,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm password',
+                        errorText: passwordsMismatch ? 'Passwords don\'t match' : null,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
-          if (isAdding) ...[
-            const SizedBox(height: Spacing.md),
-            TextField(
-              controller: confirmPassword,
-              obscureText: obscure.value,
-              decoration: InputDecoration(
-                labelText: 'Confirm password',
-                errorText: passwordsMismatch ? 'Passwords don\'t match' : null,
-              ),
-            ),
-          ],
           const SizedBox(height: Spacing.xxl),
           Container(
             padding: const EdgeInsets.all(Spacing.md),
@@ -121,22 +126,32 @@ class ProtectScreen extends HookConsumerWidget {
           const SizedBox(height: Spacing.fabClearance),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: canSubmit
-            ? () => isAdding
-                  ? ref.read(protectControllerProvider.notifier).addPassword(document, password.text)
-                  : ref.read(protectControllerProvider.notifier).removePassword(document, password.text)
-            : null,
-        icon: isProcessing
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : Icon(AppIcons.lock),
-        label: Text(
-          isProcessing ? 'Processing…' : (isAdding ? 'Add Password' : 'Remove Password'),
-        ),
+      floatingActionButton: AnimatedBuilder(
+        animation: passwordsListenable,
+        builder: (context, _) {
+          final canSubmit =
+              document != null &&
+              !isProcessing &&
+              password.text.isNotEmpty &&
+              (!isAdding || password.text == confirmPassword.text);
+          return FloatingActionButton.extended(
+            onPressed: canSubmit
+                ? () => isAdding
+                      ? ref.read(protectControllerProvider.notifier).addPassword(document, password.text)
+                      : ref.read(protectControllerProvider.notifier).removePassword(document, password.text)
+                : null,
+            icon: isProcessing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : Icon(AppIcons.lock),
+            label: Text(
+              isProcessing ? 'Processing…' : (isAdding ? 'Add Password' : 'Remove Password'),
+            ),
+          );
+        },
       ),
     );
   }

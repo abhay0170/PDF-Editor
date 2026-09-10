@@ -26,7 +26,7 @@ class ViewerTopBar extends StatelessWidget {
         child: Row(
           children: [
             IconButton(
-              icon: Icon(AppIcons.back),
+              icon: const Icon(AppIcons.back),
               tooltip: 'Back',
               onPressed: onBack,
             ),
@@ -39,7 +39,7 @@ class ViewerTopBar extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: Icon(AppIcons.more),
+              icon: const Icon(AppIcons.more),
               tooltip: 'More',
               onPressed: onMore,
             ),

@@ -58,7 +58,7 @@ abstract class PdfPageBatch {
 class PdfrxEngine implements PdfEngine {
   @override
   Future<PdfProbeResult> probe(String path, {PdfPasswordProvider? passwordProvider}) async {
-    if (!File(path).existsSync()) {
+    if (!await File(path).exists()) {
       return const PdfProbeMissingFile();
     }
 

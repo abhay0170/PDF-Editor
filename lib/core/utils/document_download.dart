@@ -23,7 +23,8 @@ Future<void> downloadDocument(BuildContext context, Document document) async {
         content: Text(savedUri != null ? 'Saved to your chosen location.' : 'Download canceled.'),
       ),
     );
-  } catch (_) {
+  } catch (e) {
+    debugPrint('downloadDocument failed: $e');
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Could not download this document.')),

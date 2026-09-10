@@ -95,10 +95,6 @@ class DocumentDao extends DatabaseAccessor<AppDatabase> with _$DocumentDaoMixin 
     );
   }
 
-  Stream<List<Document>> watchByFolder(int folderId) {
-    return (select(documents)..where((t) => t.folderId.equals(folderId))).watch();
-  }
-
   /// Pass `null` to unfile the document.
   Future<void> setFolder(int id, int? folderId) {
     return (update(documents)..where((t) => t.id.equals(id))).write(

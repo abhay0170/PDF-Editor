@@ -54,7 +54,8 @@ class FolderChipsRow extends ConsumerWidget {
   Future<void> _createFolder(BuildContext context, WidgetRef ref) async {
     final name = await _promptForName(context, title: 'New folder');
     if (name == null || name.trim().isEmpty) return;
-    await ref.read(folderDaoProvider).insertFolder(name.trim());
+    if (!context.mounted) return;
+    await _runFolderMutation(context, () => ref.read(folderDaoProvider).insertFolder(name.trim()));
   }
 
   Future<void> _showFolderOptions(BuildContext context, WidgetRef ref, Folder folder) async {
@@ -85,39 +86,56 @@ class FolderChipsRow extends ConsumerWidget {
       case _FolderAction.rename:
         final name = await _promptForName(context, title: 'Rename folder', initial: folder.name);
         if (name == null || name.trim().isEmpty) return;
-        await ref.read(folderDaoProvider).rename(folder.id, name.trim());
+        if (!context.mounted) return;
+        await _runFolderMutation(context, () => ref.read(folderDaoProvider).rename(folder.id, name.trim()));
       case _FolderAction.delete:
         if (ref.read(selectedFolderProvider) == folder.id) {
           ref.read(selectedFolderProvider.notifier).select(null);
         }
-        await ref.read(folderDaoProvider).deleteById(folder.id);
+        await _runFolderMutation(context, () => ref.read(folderDaoProvider).deleteById(folder.id));
     }
   }
 
-  Future<String?> _promptForName(BuildContext context, {required String title, String? initial}) {
+  Future<void> _runFolderMutation(BuildContext context, Future<void> Function() mutate) async {
+    try {
+      await mutate();
+    } catch (e) {
+      debugPrint('Folder mutation failed: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Please try again.')),
+      );
+    }
+  }
+
+  Future<String?> _promptForName(BuildContext context, {required String title, String? initial}) async {
     final controller = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Folder name'),
-          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Folder name'),
+            onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 }
 
